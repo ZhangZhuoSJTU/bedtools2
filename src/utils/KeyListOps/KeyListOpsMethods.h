@@ -121,6 +121,9 @@ private:
 	void toArray(bool useNum, SORT_TYPE sortVal = UNSORTED);
 	void sortArray(bool useNum, bool ascOrder);
 	void makeFreqMap();
+	double sumSquaredDiffs();
+	double getExtreme(bool useAbs, bool wantMax);
+	template <class HistType> const string &getFreqHist();
 
 
 };

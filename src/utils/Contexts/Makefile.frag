@@ -1,6 +1,9 @@
-BUILT_OBJECTS += obj/ContextBase.o obj/ContextIntersect.o obj/ContextFisher.o obj/ContextMap.o obj/ContextSample.o obj/ContextSpacing.o obj/ContextMerge.o obj/ContextJaccard.o obj/ContextClosest.o obj/ContextSubtract.o obj/ContextCoverage.o obj/ContextComplement.o obj/ContextGroupBy.o obj/ContextSummary.o
+BUILT_OBJECTS += obj/ContextBase.o obj/ContextBaseNames.o obj/ContextBaseHandlers.o obj/ContextIntersect.o obj/ContextFisher.o obj/ContextMap.o obj/ContextSample.o obj/ContextSpacing.o obj/ContextMerge.o obj/ContextJaccard.o obj/ContextClosest.o obj/ContextSubtract.o obj/ContextCoverage.o obj/ContextComplement.o obj/ContextGroupBy.o obj/ContextSummary.o
 
 obj/ContextBase.o: src/utils/Contexts/ContextBase.cpp obj/ContextBase.d
+	$(CXX_COMPILE)
+
+obj/ContextBaseHandlers.o: src/utils/Contexts/ContextBaseHandlers.cpp obj/ContextBaseHandlers.d
 	$(CXX_COMPILE)
 
 obj/ContextIntersect.o: src/utils/Contexts/ContextIntersect.cpp obj/ContextIntersect.d
@@ -40,4 +43,7 @@ obj/ContextGroupBy.o: src/utils/Contexts/ContextGroupBy.cpp obj/ContextGroupBy.d
 	$(CXX_COMPILE)
 
 obj/ContextSummary.o: src/utils/Contexts/ContextSummary.cpp obj/ContextSummary.d
+	$(CXX_COMPILE)
+
+obj/ContextBaseNames.o: src/utils/Contexts/ContextBaseNames.cpp obj/ContextBaseNames.d
 	$(CXX_COMPILE)

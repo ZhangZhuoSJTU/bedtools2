@@ -59,19 +59,19 @@ double KeyListOpsMethods::getMean() {
 double KeyListOpsMethods::getStddev() {
 	if (empty()) return NAN;
 
-	double avg = getMean();
-	double squareDiffSum = 0.0;
-	for (begin(); !end(); next()) {
-		double val = getColValNum();
-		double diff = val - avg;
-		squareDiffSum += diff * diff;
-	}
+	double squareDiffSum = sumSquaredDiffs();
 	return sqrt(squareDiffSum / (float)getCount());
 }
 // return the standard deviation
 double KeyListOpsMethods::getSampleStddev() {
 	if (empty()) return NAN;
 
+	double squareDiffSum = sumSquaredDiffs();
+	return sqrt(squareDiffSum / ((float)getCount() - 1.0));
+}
+
+// return the sum of the squared differences from the mean
+double KeyListOpsMethods::sumSquaredDiffs() {
 	double avg = getMean();
 	double squareDiffSum = 0.0;
 	for (begin(); !end(); next()) {
@@ -79,25 +79,23 @@ double KeyListOpsMethods::getSampleStddev() {
 		double diff = val - avg;
 		squareDiffSum += diff * diff;
 	}
-	return sqrt(squareDiffSum / ((float)getCount() - 1.0));
+	return squareDiffSum;
 }
 
 // return the median value in the vector
 double KeyListOpsMethods::getMedian() {
-	if (empty()) return NAN;
-
 	//get sorted vector. if even number of elems, return middle val.
 	//if odd, average of two.
 	toArray(true, ASC);
 	size_t count = getCount();
-	if (count % 2) {
-		//odd number of elements. Take middle one.
-		return _numArray[count/2];
-	} else {
-		//even numnber of elements. Take average of middle 2.
-		double sum = _numArray[count/2 -1] + _numArray[count/2];
-		return sum / 2.0;
-	}
+	if (count % 2 == 0) {
+		// An even-sized vector, including an empty one, uses the
+    	// average of the two middle values.
+		double sum = _numArray[count / 2 - 1] + _numArray[count / 2];
+        return sum / 2.0;
+	} 
+	// Odd number of elements. Take the middle one.
+    return _numArray[count / 2];
 }
 
 // return the most common value in the vector
@@ -138,53 +136,34 @@ const string &KeyListOpsMethods::getAntiMode() {
 }
 // return the minimum element of the vector
 double KeyListOpsMethods::getMin() {
-	if (empty()) return NAN;
-
-	begin();
-	double minVal = getColValNum();
-	for (; !end(); next()) {
-		double currVal = getColValNum();
-		minVal = (currVal < minVal) ? currVal : minVal;
-	}
-	return  minVal;
+	return getExtreme(false, false);
 }
 
 // return the maximum element of the vector
 double KeyListOpsMethods::getMax() {
-	if (empty()) return NAN;
-
-	begin();
-	double maxVal = getColValNum();
-	for (; !end(); next()) {
-		double currVal = getColValNum();
-		maxVal = (currVal > maxVal) ? currVal : maxVal;
-	}
-	return maxVal;
+	return getExtreme(false, true);
 }
 
 // return the minimum absolute value of the vector
 double KeyListOpsMethods::getAbsMin() {
-	if (empty()) return NAN;
-
-	begin();
-	double minVal = abs(getColValNum());
-	for (; !end(); next()) {
-		double currVal = abs(getColValNum());
-		minVal = (currVal < minVal) ? currVal : minVal;
-	}
-	return minVal;
+	return getExtreme(true, false);
 }
 // return the maximum absolute value of the vector
 double KeyListOpsMethods::getAbsMax() {
+	return getExtreme(true, true);
+}
+
+// shared scan for min / max / absolute min / absolute max
+double KeyListOpsMethods::getExtreme(bool useAbs, bool wantMax) {
 	if (empty()) return NAN;
 
 	begin();
-	double maxVal = abs(getColValNum());
+	double best = useAbs ? abs(getColValNum()) : getColValNum();
 	for (; !end(); next()) {
-		double currVal = abs(getColValNum());
-		maxVal = (currVal > maxVal) ? currVal : maxVal;
+		double currVal = useAbs ? abs(getColValNum()) : getColValNum();
+		if (wantMax ? (currVal > best) : (currVal < best)) best = currVal;
 	}
-	return maxVal;
+	return best;
 }
 // return the count of element in the vector
 uint32_t KeyListOpsMethods::getCount() {
@@ -273,43 +252,28 @@ const string &KeyListOpsMethods::getConcat() {
 
 // return a histogram of values and their freqs. in desc. order of frequency
 const string &KeyListOpsMethods::getFreqDesc() {
-	if (empty()) return _nullVal;
-
-	//for each uniq val, report # occurances, in desc order.
-	makeFreqMap();
-	//put freq map into multimap where key is the freq and val is the item. In other words, basically a reverse freq map.
-	histDescType hist;
-	for (; _freqIter != _freqMap.end(); _freqIter++) {
-		hist.insert(pair<int, string>(_freqIter->second, _freqIter->first));
-	}
-	//now iterate through the reverse map we just made and output it's pairs in val:key format.
-	_retStr.clear();
-	ostringstream s;
-	for (histDescType::iterator histIter = hist.begin(); histIter != hist.end(); histIter++) {
-		if (histIter != hist.begin()) s << _delimStr;
-		s << histIter->second;
-		s << ":";
-		s << histIter->first;
-	}
-	_retStr.append(s.str());
-	return _retStr;
+	return getFreqHist<histDescType>();
 }
 // return a histogram of values and their freqs. in asc. order of frequency
 const string &KeyListOpsMethods::getFreqAsc() {
+	return getFreqHist<histAscType>();
+}
+
+// for each uniq val, report # occurances, in the order given by the histogram type.
+template <class HistType>
+const string &KeyListOpsMethods::getFreqHist() {
 	if (empty()) return _nullVal;
 
-	//for each uniq val, report # occurances, in asc order.
 	makeFreqMap();
 	//put freq map into multimap where key is the freq and val is the item. In other words, basically a reverse freq map.
-	histAscType hist;
+	HistType hist;
 	for (; _freqIter != _freqMap.end(); _freqIter++) {
 		hist.insert(pair<int, string>(_freqIter->second, _freqIter->first));
-//		hist[*(_freqIter->second)] = _freqIter->first;
 	}
 	//now iterate through the reverse map we just made and output it's pairs in val:key format.
 	_retStr.clear();
 	ostringstream s;
-	for (histAscType::iterator histIter = hist.begin(); histIter != hist.end(); histIter++) {
+	for (typename HistType::iterator histIter = hist.begin(); histIter != hist.end(); histIter++) {
 		if (histIter != hist.begin()) s << _delimStr;
 		s << histIter->second;
 		s << ":";

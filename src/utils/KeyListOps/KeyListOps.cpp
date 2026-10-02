@@ -166,7 +166,6 @@ const string & KeyListOps::getOpVals(RecordKeyVector &hits)
 	//for the operation specified.
 	_methods.setKeyList(&hits);
 	_outVals.clear();
-	double val = 0.0;
 	for (int i=0; i < (int)_colOps.size(); i++) {
 		ostringstream s;
 		int col = _colOps[i].first;
@@ -175,48 +174,23 @@ const string & KeyListOps::getOpVals(RecordKeyVector &hits)
 		_methods.setColumn(col);
 		switch (opCode) {
 		case SUM:
-			val = _methods.getSum();
-			if (std::isnan(val)) {
-				s << _methods.getNullValue();
-			} else {
-				s << format(val);
-			}
+			printNumeric(s, _methods.getSum());
 			break;
 
 		case MEAN:
-			val = _methods.getMean();
-			if (std::isnan(val)) {
-				s << _methods.getNullValue();
-			} else {
-				s << format(val);
-			}
+			printNumeric(s, _methods.getMean());
 			break;
 
 		case STDDEV:
-			val = _methods.getStddev();
-			if (std::isnan(val)) {
-				s << _methods.getNullValue();
-			} else {
-				s << format(val);
-			}
+			printNumeric(s, _methods.getStddev());
 			break;
 
 		case SAMPLE_STDDEV:
-			val = _methods.getSampleStddev();
-			if (std::isnan(val)) {
-				s << _methods.getNullValue();
-			} else {
-				s << format(val);
-			}
+			printNumeric(s, _methods.getSampleStddev());
 			break;
 
 		case MEDIAN:
-			val = _methods.getMedian();
-			if (std::isnan(val)) {
-				s << _methods.getNullValue();
-			} else {
-				s << format(val);
-			}
+			printNumeric(s, _methods.getMedian());
 			break;
 
 		case MODE:
@@ -228,39 +202,19 @@ const string & KeyListOps::getOpVals(RecordKeyVector &hits)
 			break;
 
 		case MIN:
-			val = _methods.getMin();
-			if (std::isnan(val)) {
-				s << _methods.getNullValue();
-			} else {
-				s << format(val);
-			}
+			printNumeric(s, _methods.getMin());
 			break;
 
 		case MAX:
-			val = _methods.getMax();
-			if (std::isnan(val)) {
-				s << _methods.getNullValue();
-			} else {
-				s << format(val);
-			}
+			printNumeric(s, _methods.getMax());
 			break;
 
 		case ABSMIN:
-			val = _methods.getAbsMin();
-			if (std::isnan(val)) {
-				s << _methods.getNullValue();
-			} else {
-				s << format(val);
-			}
+			printNumeric(s, _methods.getAbsMin());
 			break;
 
 		case ABSMAX:
-			val = _methods.getAbsMax();
-			if (std::isnan(val)) {
-				s << _methods.getNullValue();
-			} else {
-				s << format(val);
-			}
+			printNumeric(s, _methods.getAbsMax());
 			break;
 
 		case COUNT:
@@ -331,6 +285,16 @@ const string & KeyListOps::getOpVals(RecordKeyVector &hits)
 		_methods.resetNonNumErrFlag();
 	}
 	return _outVals;
+}
+
+// numeric results that are NaN (e.g. an empty hit list) are reported as the null value.
+void KeyListOps::printNumeric(ostream &s, double val)
+{
+	if (std::isnan(val)) {
+		s << _methods.getNullValue();
+	} else {
+		s << format(val);
+	}
 }
 
 const string &KeyListOps::format(double val)

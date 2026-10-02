@@ -29,30 +29,33 @@ ContextMerge::~ContextMerge()
 
 bool ContextMerge::parseCmdArgs(int argc, char **argv, int skipFirstArgs)
 {
+	struct ArgHandler {
+		const char *name;
+		const char *alias;
+		bool (ContextMerge::*handler)();
+	};
+	static const ArgHandler handlers[] = {
+		{"-n", NULL, &ContextMerge::handle_n},
+		{"-nms", NULL, &ContextMerge::handle_nms},
+		{"-scores", NULL, &ContextMerge::handle_scores},
+		{"-delim", NULL, &ContextMerge::handle_delim},
+		{"-d", NULL, &ContextMerge::handle_d},
+		{"-s", NULL, &ContextMerge::handle_s},
+		{"-S", NULL, &ContextMerge::handle_S},
+	};
+	const size_t numHandlers = sizeof(handlers) / sizeof(handlers[0]);
+
 	for (_i=_skipFirstArgs; _i < argc; _i++) {
 		if (isUsed(_i - _skipFirstArgs)) {
 			continue;
 		}
-		else if (strcmp(_argv[_i], "-n") == 0) {
-			if (!handle_n()) return false;
-		}
-		else if (strcmp(_argv[_i], "-nms") == 0) {
-			if (!handle_nms()) return false;
-		}
-		else if (strcmp(_argv[_i], "-scores") == 0) {
-			if (!handle_scores()) return false;
-		}
-		else if (strcmp(_argv[_i], "-delim") == 0) {
-			if (!handle_delim()) return false;
-		}
-		else if (strcmp(_argv[_i], "-d") == 0) {
-			if (!handle_d()) return false;
-		}
-		else if (strcmp(_argv[_i], "-s") == 0) {
-			if (!handle_s()) return false;
-		}
-		else if (strcmp(_argv[_i], "-S") == 0) {
-			if (!handle_S()) return false;
+
+		for (size_t h = 0; h < numHandlers; h++) {
+			if (strcmp(_argv[_i], handlers[h].name) == 0 ||
+				(handlers[h].alias && strcmp(_argv[_i], handlers[h].alias) == 0)) {
+				if (!(this->*handlers[h].handler)()) return false;
+				break;
+			}
 		}
 	}
 	return ContextBase::parseCmdArgs(argc, argv, _skipFirstArgs);

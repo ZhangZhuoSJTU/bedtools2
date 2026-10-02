@@ -106,6 +106,54 @@ int parse_global_args(int argc, char** argv) {
 
 
 
+struct SubCommand {
+	const char *name;
+	int (*fn)(int, char**);
+	bool fullArgs; // regresstest needs all the original args
+};
+
+static const SubCommand subCommands[] = {
+	{"window", window_main, false},
+	{"genomecov", genomecoverage_main, false},
+	{"cluster", cluster_main, false},
+	{"shift", shift_main, false},
+	{"slop", slop_main, false},
+	{"split", split_main, false},
+	{"flank", flank_main, false},
+	{"sort", sort_main, false},
+	{"random", random_main, false},
+	{"shuffle", shuffle_main, false},
+	{"annotate", annotate_main, false},
+	{"multiinter", multiintersect_main, false},
+	{"unionbedg", unionbedgraphs_main, false},
+	{"pairtobed", pairtobed_main, false},
+	{"pairtopair", pairtopair_main, false},
+	{"bamtobed", bamtobed_main, false},
+	{"bedtobam", bedtobam_main, false},
+	{"bamtofastq", bamtofastq_main, false},
+	{"bedpetobam", bedpetobam_main, false},
+	{"bed12tobed6", bed12tobed6_main, false},
+	{"multicov", multibamcov_main, false},
+	{"tag", tagbam_main, false},
+	{"getfasta", fastafrombed_main, false},
+	{"maskfasta", maskfastafrombed_main, false},
+	{"nuc", nuc_main, false},
+	{"reldist", reldist_main, false},
+	{"overlap", getoverlap_main, false},
+	{"igv", bedtoigv_main, false},
+	{"links", links_main, false},
+	{"makewindows", windowmaker_main, false},
+	{"expand", expand_main, false},
+	{"regresstest", regress_test_main, true},
+};
+
+static const SubCommand *findSubCommand(const string &name) {
+	for (size_t i = 0; i < sizeof(subCommands) / sizeof(subCommands[0]); i++) {
+		if (name == subCommands[i].name) return &subCommands[i];
+	}
+	return NULL;
+}
+
 int main(int argc, char *argv[])
 {
 	argc = parse_global_args(argc, argv);
@@ -128,53 +176,9 @@ int main(int argc, char *argv[])
 		}
 	}
 
-    // genome arithmetic tools
-    else if (subCmd == "window")      return window_main(argc-1, argv+1);
-    else if (subCmd == "genomecov")   return genomecoverage_main(argc-1, argv+1);
-    else if (subCmd == "cluster")     return cluster_main(argc-1, argv+1);
-	  else if (subCmd == "shift")       return shift_main(argc-1, argv+1);
-    else if (subCmd == "slop")        return slop_main(argc-1, argv+1);
-    else if (subCmd == "split")       return split_main(argc-1, argv+1);
-    else if (subCmd == "flank")       return flank_main(argc-1, argv+1);
-    else if (subCmd == "sort")        return sort_main(argc-1, argv+1);
-    else if (subCmd == "random")      return random_main(argc-1, argv+1);
-    else if (subCmd == "shuffle")     return shuffle_main(argc-1, argv+1);
-    else if (subCmd == "annotate")    return annotate_main(argc-1, argv+1);
+    else if (const SubCommand *cmd = findSubCommand(subCmd))
+        return cmd->fullArgs ? cmd->fn(argc, argv) : cmd->fn(argc-1, argv+1);
 
-    // Multi-way file comparisonstools
-    else if (subCmd == "multiinter")  return multiintersect_main(argc-1, argv+1);
-    else if (subCmd == "unionbedg")   return unionbedgraphs_main(argc-1, argv+1);
-
-    // paired-end conversion tools
-    else if (subCmd == "pairtobed")   return pairtobed_main(argc-1, argv+1);
-    else if (subCmd == "pairtopair")  return pairtopair_main(argc-1, argv+1);
-
-    // format conversion tools
-    else if (subCmd == "bamtobed")    return bamtobed_main(argc-1, argv+1);
-    else if (subCmd == "bedtobam")    return bedtobam_main(argc-1, argv+1);
-    else if (subCmd == "bamtofastq")  return bamtofastq_main(argc-1, argv+1);
-    else if (subCmd == "bedpetobam")  return bedpetobam_main(argc-1, argv+1);
-    else if (subCmd == "bed12tobed6") return bed12tobed6_main(argc-1, argv+1);
-
-    // BAM-specific tools
-    else if (subCmd == "multicov")    return multibamcov_main(argc-1, argv+1);
-    else if (subCmd == "tag")         return tagbam_main(argc-1, argv+1);
-
-    // fasta tools
-    else if (subCmd == "getfasta")    return fastafrombed_main(argc-1, argv+1);
-    else if (subCmd == "maskfasta")   return maskfastafrombed_main(argc-1, argv+1);
-    else if (subCmd == "nuc")         return nuc_main(argc-1, argv+1);
-
-    // statistics tools
-    else if (subCmd == "reldist")     return reldist_main(argc-1, argv+1);
-
-    // misc. tools
-    else if (subCmd == "overlap")     return getoverlap_main(argc-1, argv+1);
-    else if (subCmd == "igv")         return bedtoigv_main(argc-1, argv+1);
-    else if (subCmd == "links")       return links_main(argc-1, argv+1);
-    else if (subCmd == "makewindows") return windowmaker_main(argc-1, argv+1);
-    else if (subCmd == "expand")      return expand_main(argc-1, argv+1);
-    else if (subCmd == "regresstest")  return regress_test_main(argc, argv); //this command does need all the orig args.
     // help
     else if (subCmd == "-h" || subCmd == "--help" ||
              subCmd == "-help")
@@ -322,33 +326,27 @@ int bedtools_faq(void)
 }
 
 void showHelp(const string &subCmd) {
-	if (subCmd == "intersect") {
-		intersect_help();
-	} else if (subCmd == "map") {
-		map_help();
-	} else if (subCmd == "closest") {
-		closest_help();
-	} else if (subCmd == "merge") {
-		merge_help();
-	} else if (subCmd == "jaccard") {
-		jaccard_help();
-	} else if (subCmd == "subtract") {
-		subtract_help();
-	} else if (subCmd == "sample") {
-		sample_help();
-	} else if (subCmd == "spacing") {
-		spacing_help();
-	} else if (subCmd == "fisher") {
-		fisher_help();
-	} else if (subCmd == "coverage") {
-		coverage_help();
-	} else if (subCmd == "complement") {
-		complement_help();
-	} else if (subCmd == "groupby") {
-		groupby_help();
-	} else if (subCmd == "summary") {
-        summary_help();
-  }
+	static const struct { const char *name; void (*fn)(); } helpers[] = {
+		{"intersect", intersect_help},
+		{"map", map_help},
+		{"closest", closest_help},
+		{"merge", merge_help},
+		{"jaccard", jaccard_help},
+		{"subtract", subtract_help},
+		{"sample", sample_help},
+		{"spacing", spacing_help},
+		{"fisher", fisher_help},
+		{"coverage", coverage_help},
+		{"complement", complement_help},
+		{"groupby", groupby_help},
+		{"summary", summary_help},
+	};
+	for (size_t i = 0; i < sizeof(helpers) / sizeof(helpers[0]); i++) {
+		if (subCmd == helpers[i].name) {
+			helpers[i].fn();
+			return;
+		}
+	}
 }
 
 void showErrors(const string &errors) 

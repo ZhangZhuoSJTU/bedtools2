@@ -19,70 +19,47 @@ ContextIntersect::~ContextIntersect()
 
 
 bool ContextIntersect::parseCmdArgs(int argc, char **argv, int skipFirstArgs) {
+	struct ArgHandler {
+		const char *name;
+		const char *alias;
+		bool (ContextIntersect::*handler)();
+	};
+	static const ArgHandler handlers[] = {
+		{"-a", NULL, &ContextIntersect::handle_a},
+		{"-abam", NULL, &ContextIntersect::handle_abam},
+		{"-b", NULL, &ContextIntersect::handle_b},
+		{"-names", NULL, &ContextIntersect::handle_names},
+		{"-filenames", NULL, &ContextIntersect::handle_filenames},
+		{"-u", NULL, &ContextIntersect::handle_u},
+		{"-f", NULL, &ContextIntersect::handle_f},
+		{"-F", NULL, &ContextIntersect::handle_F},
+		{"-wa", NULL, &ContextIntersect::handle_wa},
+		{"-wao", NULL, &ContextIntersect::handle_wao},
+		{"-wb", NULL, &ContextIntersect::handle_wb},
+		{"-wo", NULL, &ContextIntersect::handle_wo},
+		{"-c", NULL, &ContextIntersect::handle_c},
+		{"-C", NULL, &ContextIntersect::handle_C},
+		{"-r", NULL, &ContextIntersect::handle_r},
+		{"-e", NULL, &ContextIntersect::handle_e},
+		{"-v", NULL, &ContextIntersect::handle_v},
+		{"-s", NULL, &ContextIntersect::handle_s},
+		{"-S", NULL, &ContextIntersect::handle_S},
+		{"-loj", NULL, &ContextIntersect::handle_loj},
+	};
+	const size_t numHandlers = sizeof(handlers) / sizeof(handlers[0]);
+
 	for (_i=_skipFirstArgs; _i < argc; _i++) {
 		if (isUsed(_i - _skipFirstArgs)) {
 			continue;
 		}
-		if (strcmp(_argv[_i], "-a") == 0) {
-			if (!handle_a()) return false;
+
+		for (size_t h = 0; h < numHandlers; h++) {
+			if (strcmp(_argv[_i], handlers[h].name) == 0 ||
+				(handlers[h].alias && strcmp(_argv[_i], handlers[h].alias) == 0)) {
+				if (!(this->*handlers[h].handler)()) return false;
+				break;
+			}
 		}
-        else if (strcmp(_argv[_i], "-abam") == 0) {
-			if (!handle_abam()) return false;
-        }
-        else if (strcmp(_argv[_i], "-b") == 0) {
-			if (!handle_b()) return false;
-		}
-        else if (strcmp(_argv[_i], "-names") == 0) {
-			if (!handle_names()) return false;
-		}
-        else if (strcmp(_argv[_i], "-filenames") == 0) {
-			if (!handle_filenames()) return false;
-		}
-        else if (strcmp(_argv[_i], "-u") == 0) {
-			if (!handle_u()) return false;
-        }
-        else if (strcmp(_argv[_i], "-f") == 0) {
-			if (!handle_f()) return false;
-        }
-        else if (strcmp(_argv[_i], "-F") == 0) {
-			if (!handle_F()) return false;
-        }
-        else if (strcmp(_argv[_i], "-wa") == 0) {
-			if (!handle_wa()) return false;
-        }
-        else if (strcmp(_argv[_i], "-wao") == 0) {
-			if (!handle_wao()) return false;
-        }
-        else if (strcmp(_argv[_i], "-wb") == 0) {
-			if (!handle_wb()) return false;
-        }
-        else if (strcmp(_argv[_i], "-wo") == 0) {
-			if (!handle_wo()) return false;
-        }
-        else if (strcmp(_argv[_i], "-c") == 0) {
-			if (!handle_c()) return false;
-        }
-        else if (strcmp(_argv[_i], "-C") == 0) {
-			if (!handle_C()) return false;
-        }
-        else if(strcmp(_argv[_i], "-r") == 0) {
-			if (!handle_r()) return false;
-        }
-        else if(strcmp(_argv[_i], "-e") == 0) {
-			if (!handle_e()) return false;
-        }
-        else if (strcmp(_argv[_i], "-v") == 0) {
-			if (!handle_v()) return false;
-        }
-        else if (strcmp(_argv[_i], "-s") == 0) {
-			if (!handle_s()) return false;
-        }
-        else if (strcmp(_argv[_i], "-S") == 0) {
-			if (!handle_S()) return false;
-        }
-        else if (strcmp(_argv[_i], "-loj") == 0) {
-			if (!handle_loj()) return false;
-        }
 	}
 	return ContextBase::parseCmdArgs(argc, argv, _skipFirstArgs);
 }

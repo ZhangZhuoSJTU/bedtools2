@@ -8,6 +8,7 @@
 #ifndef KEYLISTOPS_H_
 #define KEYLISTOPS_H_
 
+#include <iosfwd>
 #include "KeyListOpsMethods.h"
 #include "FileRecordTypeChecker.h"
 
@@ -74,6 +75,7 @@ private:
     bool isNumericOp(OP_TYPES op) const;
     bool isNumericOp(const string &op) const;
     const string &format(double val);
+    void printNumeric(ostream &s, double val);
 
 };
 

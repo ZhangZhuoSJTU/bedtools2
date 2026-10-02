@@ -178,74 +178,47 @@ bool ContextBase::testCmdArgs(int argc, char **argv) {
 }
 
 bool ContextBase::parseCmdArgs(int argc, char **argv, int skipFirstArgs) {
-
+	struct ArgHandler {
+		const char *name;
+		const char *alias;
+		bool (ContextBase::*handler)();
+	};
+	static const ArgHandler handlers[] = {
+		{"-i", NULL, &ContextBase::handle_i},
+		{"-g", NULL, &ContextBase::handle_g},
+		{"-h", "--help", &ContextBase::handle_h},
+		{"-split", NULL, &ContextBase::handle_split},
+		{"-bed", NULL, &ContextBase::handle_bed},
+		{"-ubam", NULL, &ContextBase::handle_ubam},
+		{"-fbam", NULL, &ContextBase::handle_fbam},
+		{"-sorted", NULL, &ContextBase::handle_sorted},
+		{"-nobuf", NULL, &ContextBase::handle_nobuf},
+		{"-iobuf", NULL, &ContextBase::handle_iobuf},
+		{"-prec", NULL, &ContextBase::handle_prec},
+		{"-header", NULL, &ContextBase::handle_header},
+		{"-n", NULL, &ContextBase::handle_n},
+		{"-seed", NULL, &ContextBase::handle_seed},
+		{"-o", "-ops", &ContextBase::handle_o},
+		{"-c", "-opCols", &ContextBase::handle_c},
+		{"-null", NULL, &ContextBase::handle_null},
+		{"-delim", NULL, &ContextBase::handle_delim},
+		{"-sortout", NULL, &ContextBase::handle_sortout},
+		{"-nonamecheck", NULL, &ContextBase::handle_nonamecheck},
+	};
+	const size_t numHandlers = sizeof(handlers) / sizeof(handlers[0]);
 
 	for (_i=_skipFirstArgs; _i < argc; _i++) {
 		if (isUsed(_i - _skipFirstArgs)) {
 			continue;
 		}
 
-		if (strcmp(_argv[_i], "-i") == 0) {
-			if (!handle_i()) return false;
+		for (size_t h = 0; h < numHandlers; h++) {
+			if (strcmp(_argv[_i], handlers[h].name) == 0 ||
+				(handlers[h].alias && strcmp(_argv[_i], handlers[h].alias) == 0)) {
+				if (!(this->*handlers[h].handler)()) return false;
+				break;
+			}
 		}
-		else if (strcmp(_argv[_i], "-g") == 0) {
-			if (!handle_g()) return false;
-		}
-		else if ((strcmp(_argv[_i], "-h") == 0) || (strcmp(_argv[_i], "--help") == 0)) {
-			if (!handle_h()) return false;
-		}
-		else if (strcmp(_argv[_i], "-split") == 0) {
-			if (!handle_split()) return false;
-		}
-        else if (strcmp(_argv[_i], "-bed") == 0) {
-			if (!handle_bed()) return false;
-       }
-        else if (strcmp(_argv[_i], "-ubam") == 0) {
-			if (!handle_ubam()) return false;
-        }
-        else if (strcmp(_argv[_i], "-fbam") == 0) {
-			if (!handle_fbam()) return false;
-        }
-        else if(strcmp(_argv[_i], "-sorted") == 0) {
-			if (!handle_sorted()) return false;
-        }
-        else if (strcmp(_argv[_i], "-nobuf") == 0) {
-			if (!handle_nobuf()) return false;
-        }
-        else if (strcmp(_argv[_i], "-iobuf") == 0) {
-			if (!handle_iobuf()) return false;
-        }
-        else if (strcmp(_argv[_i], "-prec") == 0) {
-			if (!handle_prec()) return false;
-        }
-        else if (strcmp(_argv[_i], "-header") == 0) {
-			if (!handle_header()) return false;
-        }
-        else if (strcmp(_argv[_i], "-n") == 0) {
-			if (!handle_n()) return false;
-        }
-        else if (strcmp(_argv[_i], "-seed") == 0) {
-			if (!handle_seed()) return false;
-        }
-        else if ((strcmp(_argv[_i], "-o") == 0) || (strcmp(_argv[_i], "-ops") == 0)) {
-			if (!handle_o()) return false;
-        }
-        else if ((strcmp(_argv[_i], "-c") == 0) || (strcmp(_argv[_i], "-opCols") == 0)) {
-			if (!handle_c()) return false;
-        }
-        else if (strcmp(_argv[_i], "-null") == 0) {
-			if (!handle_null()) return false;
-        }
-        else if (strcmp(_argv[_i], "-delim") == 0) {
-			if (!handle_delim()) return false;
-        }
-        else if (strcmp(_argv[_i], "-sortout") == 0) {
-			if (!handle_sortout()) return false;
-        }
-        else if (strcmp(_argv[_i], "-nonamecheck") == 0) {
-			if (!handle_nonamecheck()) return false;
-        }
-
 	}
 	return true;
 }
@@ -387,235 +360,6 @@ int ContextBase::getUnspecifiedSeed()
 	return _seed;
 }
 
-bool ContextBase::handle_bed()
-{
-	setExplicitBedOutput(true);
-	markUsed(_i - _skipFirstArgs);
-	return true;
-}
-
-bool ContextBase::handle_fbam()
-{
-	setUseFullBamTags(true);
-	markUsed(_i - _skipFirstArgs);
-	return true;
-}
-
-bool ContextBase::handle_g()
-{
-	if (_argc <= _i+1) {
-		_errorMsg = "\n***** ERROR: -g option given, but no genome file specified. *****";
-		return false;
-	}
-	openGenomeFile(_argv[_i+1]);
-	markUsed(_i - _skipFirstArgs);
-	_i++;
-	markUsed(_i - _skipFirstArgs);
-	return true;
-}
-
-bool ContextBase::handle_h()
-{
-	setShowHelp(true);
-	markUsed(_i - _skipFirstArgs);
-	return true;
-}
-
-bool ContextBase::handle_header()
-{
-	setPrintHeader(true);
-	markUsed(_i - _skipFirstArgs);
-	return true;
-}
-
-bool ContextBase::handle_i()
-{
-	if (_argc <= _i+1) {
-		_errorMsg = "\n***** ERROR: -i option given, but no input file specified. *****";
-		return false;
-	}
-	addInputFile(_argv[_i+1]);
-	markUsed(_i - _skipFirstArgs);
-	_i++;
-	markUsed(_i - _skipFirstArgs);
-	return true;
-}
-
-bool ContextBase::handle_n()
-{
-	if (_argc <= _i+1) {
-		_errorMsg = "\n***** ERROR: -n option given, but no number of output records specified. *****";
-		return false;
-	}
-	setNumOutputRecords(atoi(_argv[_i + 1]));
-	markUsed(_i - _skipFirstArgs);
-	_i++;
-	markUsed(_i - _skipFirstArgs);
-	return true;
-}
-
-bool ContextBase::handle_nobuf()
-{
-	setUseBufferedOutput(false);
-	markUsed(_i - _skipFirstArgs);
-	return true;
-}
-
-bool ContextBase::handle_iobuf()
-{
-	if (_argc <= _i+1) {
-		_errorMsg = "\n***** ERROR: -iobuf option given, but size of input buffer not specified. *****";
-		return false;
-	}
-	if (!parseIoBufSize(_argv[_i + 1])) return false;
-	markUsed(_i - _skipFirstArgs);
-	_i++;
-	markUsed(_i - _skipFirstArgs);
-	return true;
-}
-
-bool ContextBase::handle_seed()
-{
-	if (_argc <= _i+1) {
-		_errorMsg = "\n***** ERROR: -seed option given, but no seed specified. *****";
-		return false;
-	}
-	_hasConstantSeed = true;
-	_seed  = atoi(_argv[_i+1]);
-	rand_set_seed(_seed);
-	markUsed(_i - _skipFirstArgs);
-	_i++;
-	markUsed(_i - _skipFirstArgs);
-	return true;
-}
-
-bool ContextBase::handle_split()
-{
-    setObeySplits(true);
-     markUsed(_i - _skipFirstArgs);
-	return true;
-}
-
-bool ContextBase::handle_sorted()
-{
-	setSortedInput(true);
-	markUsed(_i - _skipFirstArgs);
-	return true;
-}
-
-bool ContextBase::handle_ubam()
-{
-    setUncompressedBam(true);
-    markUsed(_i - _skipFirstArgs);
-	return true;
-}
-
-
-// Methods specific to column operations.
-// for col ops, -c is the string of columns upon which to operate
-bool ContextBase::handle_c()
-{
-	if (!hasColumnOpsMethods()) {
-		return false;
-	}
-    if ((_i+1) < _argc) {
-        _keyListOps->setColumns(_argv[_i + 1]);
-        markUsed(_i - _skipFirstArgs);
-        _i++;
-        markUsed(_i - _skipFirstArgs);
-        return true;
-    }
-    return false;
-}
-
-
-// for col ops, -o is the string of operations to apply to the columns (-c)
-bool ContextBase::handle_o()
-{
-	if (!hasColumnOpsMethods()) {
-		return false;
-	}
-    if ((_i+1) < _argc) {
-    	 _keyListOps->setOperations(_argv[_i + 1]);
-        markUsed(_i - _skipFirstArgs);
-        _i++;
-        markUsed(_i - _skipFirstArgs);
-        return true;
-    }
-    return false;
-}
-
-bool ContextBase::handle_prec()
-{
-	if (!hasColumnOpsMethods()) {
-		return false;
-	}
-    if ((_i+1) < _argc) {
-    	int prec = atoi(_argv[_i + 1]);
-    	if (prec < 1) {
-    		_errorMsg += "\n***** ERROR: -prec must be followed by a positive integer. Exiting. *****";
-    		return false;
-    	}
-    	 _reportPrecision = prec;
-        markUsed(_i - _skipFirstArgs);
-        _i++;
-        markUsed(_i - _skipFirstArgs);
-        return true;
-    }
-	_errorMsg += "\n***** ERROR: -prec must be followed by a positive integer. Exiting. *****";
-    return false;
-}
-
-
-
-// for col ops, -null is a NULL value assigned
-// when no overlaps are detected.
-bool ContextBase::handle_null()
-{
-	if (!hasColumnOpsMethods()) {
-		return false;
-	}
-    if ((_i+1) < _argc) {
-    	 _keyListOps->setNullValue(_argv[_i + 1]);
-        markUsed(_i - _skipFirstArgs);
-        _i++;
-        markUsed(_i - _skipFirstArgs);
-        return true;
-    }
-    return false;
-}
-
-//for col ops, delimStr will appear between each item in
-//a collapsed but delimited list.
-bool ContextBase::handle_delim()
-{
-	if (!hasColumnOpsMethods()) {
-		_errorMsg = "\n***** ERROR: Can't set delimiter for tools without column operations. Exiting. *****";
-		return false;
-	}
-    if ((_i+1) < _argc) {
-    	 _keyListOps->setDelimStr(_argv[_i + 1]);
-        markUsed(_i - _skipFirstArgs);
-        _i++;
-        markUsed(_i - _skipFirstArgs);
-    }
-    return true;
-}
-
-bool ContextBase::handle_sortout()
-{
-	setSortOutput(true);
-	markUsed(_i - _skipFirstArgs);
-	return true;
-}
-
-bool ContextBase::handle_nonamecheck()
-{
-	setNameCheckDisabled(true);
-	markUsed(_i - _skipFirstArgs);
-	return true;
-}
-
 void ContextBase::setColumnOpsMethods(bool val)
 {
 	if (val && !_hasColumnOpsMethods) {
@@ -682,109 +426,6 @@ bool ContextBase::parseIoBufSize(string bufStr)
 		return false;
 	}
 	return true;
-}
-
-void ContextBase::testNameConventions(const Record *record) {
-	//Do nothing if using the -nonamecheck option,
-	//warning already given, or record is unmapped BAM record
-	if (getNameCheckDisabled() || _nameConventionWarningTripped || record->isUnmapped()) return;
-
-	int fileIdx = record->getFileIdx();
-
-	//
-	// First test whether chr in chrom names match
-	//
-
-	bool hasChr = record->hasChrInChromName();
-	testType testChrVal = fileHasChrInChromNames(fileIdx);
-
-	if (testChrVal == UNTESTED) {
-		_fileHasChrInChromNames[fileIdx] = hasChr ? YES : NO;
-	}
-	if ((_allFilesHaveChrInChromNames == YES && !hasChr) || (_allFilesHaveChrInChromNames == NO && hasChr)) {
-		nameConventionWarning(record, _fileNames[fileIdx], " has inconsistent naming convention for record:\n");
-	}
-
-	if (_allFilesHaveChrInChromNames == UNTESTED) {
-		_allFilesHaveChrInChromNames = hasChr ? YES : NO;
-	}
-
-
-	//
-	// Now test whether leading zero in chrom names match
-	//
-
-
-	bool zeroVal = record->hasLeadingZeroInChromName(hasChr);
-	testChrVal = fileHasLeadingZeroInChromNames(fileIdx);
-	if (testChrVal == UNTESTED) {
-		_fileHasLeadingZeroInChromNames[fileIdx] = zeroVal ? YES : NO;
-	}
-	if ((_allFileHaveLeadingZeroInChromNames == YES && !zeroVal) || (_allFileHaveLeadingZeroInChromNames == NO && zeroVal)) {
-		nameConventionWarning(record, _fileNames[fileIdx], " has a record where naming convention (leading zero) is inconsistent with other files:\n");
-	}
-
-	if (_allFileHaveLeadingZeroInChromNames == UNTESTED) {
-		_allFileHaveLeadingZeroInChromNames = zeroVal ? YES : NO;
-	}
-}
-
-ContextBase::testType ContextBase::fileHasChrInChromNames(int fileIdx) {
-	conventionType::iterator iter = _fileHasChrInChromNames.find(fileIdx);
-	if (iter == _fileHasChrInChromNames.end()) {
-		return UNTESTED;
-	}
-	return iter->second;
-}
-
-ContextBase::testType ContextBase::fileHasLeadingZeroInChromNames(int fileIdx) {
-	conventionType::iterator iter = _fileHasLeadingZeroInChromNames.find(fileIdx);
-	if (iter == _fileHasLeadingZeroInChromNames.end()) {
-		return UNTESTED;
-	}
-	return iter->second;
-}
-
-
-
-void ContextBase::warn(const Record *record, const string str1, const string str2, const string str3) {
-	string msg;
-	setErrorMsg(msg, true, record, str1, str2, str3);
-	cerr << msg << endl;
-}
-
-void ContextBase::die(const Record *record, const string str1, const string str2, const string str3) {
-	string msg;
-	setErrorMsg(msg, false, record, str1, str2, str3);
-	cerr << msg << endl;
-	exit(1);
-}
-
-void ContextBase::setErrorMsg(string &msg, bool onlyWarn, const Record * record, string str1, const string str2, const string str3) {
-	if (onlyWarn) {
-		msg = "\n***** WARNING: ";
-	} else {
-		msg = "\n***** ERROR: ";
-	}
-	msg.append(str1);
-	msg.append(str2);
-	msg.append(str3);
-	msg.append(" Exiting...\n");
-	if (record != NULL) {
-		record->print(msg);
-	}
-}
-
-void ContextBase::nameConventionWarning(const Record *record, const string &filename, const string &message)
-{
-	 _nameConventionWarningMsg = "***** WARNING: File ";
-	 _nameConventionWarningMsg.append(filename);
-	 _nameConventionWarningMsg.append(message);
-	 record->print(_nameConventionWarningMsg);
-	 _nameConventionWarningMsg.append("\n");
-	 _nameConventionWarningTripped = true;
-
-	 cerr << _nameConventionWarningMsg << endl;
 }
 
 bool ContextBase::strandedToolSupported() {

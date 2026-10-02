@@ -32,27 +32,32 @@ ContextGroupBy::~ContextGroupBy()
 
 bool ContextGroupBy::parseCmdArgs(int argc, char **argv, int skipFirstArgs)
 {
+	struct ArgHandler {
+		const char *name;
+		const char *alias;
+		bool (ContextGroupBy::*handler)();
+	};
+	static const ArgHandler handlers[] = {
+		{"-g", "-grp", &ContextGroupBy::handle_g},
+		{"-inheader", NULL, &ContextGroupBy::handle_inheader},
+		{"-outheader", NULL, &ContextGroupBy::handle_outheader},
+		{"-header", NULL, &ContextGroupBy::handle_header},
+		{"-full", NULL, &ContextGroupBy::handle_full},
+		{"-ignorecase", NULL, &ContextGroupBy::handle_ignorecase},
+	};
+	const size_t numHandlers = sizeof(handlers) / sizeof(handlers[0]);
+
 	for (_i=_skipFirstArgs; _i < argc; _i++) {
 		if (isUsed(_i - _skipFirstArgs)) {
 			continue;
 		}
-		else if ((strcmp(_argv[_i], "-g") == 0) || (strcmp(_argv[_i], "-grp") == 0)) {
-			if (!handle_g()) return false;
-		}
-		else if (strcmp(_argv[_i], "-inheader") == 0) {
-			if (!handle_inheader()) return false;
-		}
-		else if (strcmp(_argv[_i], "-outheader") == 0) {
-			if (!handle_outheader()) return false;
-		}
-		else if (strcmp(_argv[_i], "-header") == 0) {
-			if (!handle_header()) return false;
-		}
-		else if (strcmp(_argv[_i], "-full") == 0) {
-			if (!handle_full()) return false;
-		}
-		else if (strcmp(_argv[_i], "-ignorecase") == 0) {
-			if (!handle_ignorecase()) return false;
+
+		for (size_t h = 0; h < numHandlers; h++) {
+			if (strcmp(_argv[_i], handlers[h].name) == 0 ||
+				(handlers[h].alias && strcmp(_argv[_i], handlers[h].alias) == 0)) {
+				if (!(this->*handlers[h].handler)()) return false;
+				break;
+			}
 		}
 	}
 	return ContextBase::parseCmdArgs(argc, argv, _skipFirstArgs);
