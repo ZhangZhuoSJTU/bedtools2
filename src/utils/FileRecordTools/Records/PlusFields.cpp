@@ -7,13 +7,18 @@ PlusFields::PlusFields()
 
 bool PlusFields::initFromFile(SingleLineDelimTextFileReader *fileReader)
 {
-	size_t numFields = fileReader->getNumFields() - _numOffsetFields;
+	// The "plus" fields are every column beyond the fixed record prefix
+	// (_numOffsetFields). Size our storage to hold exactly those trailing
+	// columns, growing/shrinking only when the count changes.
+	size_t numPlusFields = fileReader->getNumFields() - _numOffsetFields;
 
-	if (size() != numFields) {
-		_fields.resize(numFields);
+	if (size() != numPlusFields) {
+		_fields.resize(numPlusFields);
 	}
 
-	for (size_t i=0; i < numFields; i++) {
+	// Copy each trailing column, translating our local index into the
+	// reader's absolute 0-based column index.
+	for (size_t i = 0; i < numPlusFields; i++) {
 		fileReader->getField((int)(i + _numOffsetFields), _fields[i]);
 	}
 	return true;

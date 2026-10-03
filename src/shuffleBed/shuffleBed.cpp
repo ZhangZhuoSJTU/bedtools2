@@ -100,6 +100,15 @@ BedShuffle::~BedShuffle(void) {
 }
 
 
+void BedShuffle::reportMaxTriesExceeded() {
+    cerr << "Error, line " << _bed->_lineNum
+         << ": tried " << _maxTries
+         << " potential loci for entry, but could not avoid "
+         << "excluded regions.  Ignoring entry and moving on."
+         << endl;
+}
+
+
 void BedShuffle::Shuffle() {
     
     if (_isBedpe == false) {

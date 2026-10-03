@@ -24,6 +24,11 @@ using namespace std;
 void window_help(void);
 
 
+// Entry point for "bedtools window".
+//
+// Parses the command-line options, validates mutually-exclusive flag
+// combinations, and (when the arguments are valid) constructs a
+// BedWindow object which performs the actual windowed intersection.
 int window_main(int argc, char* argv[]) {
 
     // our configuration variables
@@ -34,6 +39,8 @@ int window_main(int argc, char* argv[]) {
     string bedBFile;
 
     // input arguments
+    // Default window size added on each side of every A feature (-w/-l/-r
+    // override these; both default to 1000 bp as documented in window_help).
     int leftSlop  = 1000;
     int rightSlop = 1000;
 

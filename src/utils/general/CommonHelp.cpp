@@ -6,6 +6,8 @@
  */
 #include "CommonHelp.h"
 
+// Print help for the options that control how intersection results are written
+// (-wa, -wb, -loj, -wo, -wao, -u, -c, -C, -v, -ubam).
 void IntersectOutputHelp() {
 	cerr << "\t-wa\t"           << "Write the original entry in A for each overlap." << endl << endl;
 
@@ -47,11 +49,15 @@ void IntersectOutputHelp() {
 
 }
 
+// Print help for the -sorted option (chromsweep algorithm for sorted input).
 void sortedHelp() {
     cerr << "\t-sorted\t"       << "Use the \"chromsweep\" algorithm for sorted (-k1,1 -k2,2n) input." << endl << endl;
 }
 
 
+// Print help for options shared by the intersection-style tools: strand
+// requirements (-s/-S), overlap fractions (-f/-F/-r/-e), -split, -g, and
+// -nonamecheck.
 void IntersectCommonHelp() {
     cerr << "\t-s\t"            << "Require same strandedness.  That is, only report hits in B" << endl;
     cerr                        << "\t\tthat overlap A on the _same_ strand." << endl;
@@ -88,6 +94,8 @@ void IntersectCommonHelp() {
 
 }
 
+// Print help for options relevant when multiple database files are used
+// (-names, -filenames, -sortout).
 void multiDbOutputHelp() {
     cerr << "\t-names\t"       << "When using multiple databases, provide an alias for each that" << endl;
     cerr						<<"\t\twill appear instead of a fileId when also printing the DB record." << endl << endl;
@@ -100,6 +108,8 @@ void multiDbOutputHelp() {
 }
 
 
+// Print help for options available to essentially all tools (-bed, -header,
+// -nobuf, -iobuf).
 void allToolsCommonHelp() {
 	cerr << "\t-bed\t"          << "If using BAM input, write output as BED." << endl << endl;
 

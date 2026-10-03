@@ -16,6 +16,9 @@ class FileRecordMgr;
 //print help message
 void KeyListOpsHelp();
 
+// Drives column operations (the map/groupBy -c/-o features): parses and
+// validates the requested column/operation lists, then computes the result
+// string for a set of hits by delegating the actual math to KeyListOpsMethods.
 class KeyListOps {
 public:
 

@@ -14,11 +14,13 @@ Bed5Interval::~Bed5Interval()
 
 bool Bed5Interval::initFromFile(SingleLineDelimTextFileReader *fileReader)
 {
-	bool baseRetFlag = Bed3Interval::initFromFile(fileReader);
+	// A BED5 record extends the BED3 core with the name and score columns.
+	bool parsedBase = Bed3Interval::initFromFile(fileReader);
 
+	// Columns 3 and 4 (0-based) hold the name and score respectively.
 	fileReader->getField(3, _name);
 	fileReader->getField(4, _score);
-	return baseRetFlag;
+	return parsedBase;
 }
 
 inline void print_record(const string& chrom_name, CHRPOS start, CHRPOS end, const string& name, const string& score, string& buf) {
@@ -55,10 +57,10 @@ void Bed5Interval::printNull(string &outBuf) const
 const string &Bed5Interval::getField(int fieldNum) const
 {
 	switch (fieldNum) {
-	case 4:
+	case NAME_COLUMN:
 		return _name;
 		break;
-	case 5:
+	case SCORE_COLUMN:
 		return _score;
 		break;
 
@@ -70,10 +72,10 @@ const string &Bed5Interval::getField(int fieldNum) const
 
 bool Bed5Interval::isNumericField(int fieldNum) {
 	switch (fieldNum) {
-	case 4:
+	case NAME_COLUMN:
 		return false;
 		break;
-	case 5:
+	case SCORE_COLUMN:
 		return true;
 		break;
 	default:

@@ -11,11 +11,22 @@
 #include <limits.h>
 #include "ParseTools.h" //to get the isNumeric function
 
+namespace {
+	// Value emitted when an operation has no result to report.
+	const char *const DEFAULT_NULL_VALUE = ".";
+	// Separator placed between successive values in list-style operations.
+	const char *const DEFAULT_DELIMITER = ",";
+	// Separator placed between a value and its frequency in histogram output.
+	const char *const HIST_FREQ_SEPARATOR = ":";
+	// Default starting column (1-based) for the methods class.
+	const int DEFAULT_COLUMN = 1;
+}
+
 KeyListOpsMethods::KeyListOpsMethods()
 : _keyList(&_nullKeyList),
-  _column(1),
-  _nullVal("."),
-  _delimStr(","),
+  _column(DEFAULT_COLUMN),
+  _nullVal(DEFAULT_NULL_VALUE),
+  _delimStr(DEFAULT_DELIMITER),
   _iter(_nullKeyList.begin()),
   _nonNumErrFlag(false),
   _isBam(false)
@@ -25,8 +36,8 @@ KeyListOpsMethods::KeyListOpsMethods()
 KeyListOpsMethods::KeyListOpsMethods(RecordKeyVector *keyList, int column)
 : _keyList(keyList),
   _column(column),
-  _nullVal("."),
-  _delimStr(","),
+  _nullVal(DEFAULT_NULL_VALUE),
+  _delimStr(DEFAULT_DELIMITER),
   _iter(keyList->begin())
 {
 }
@@ -59,11 +70,11 @@ double KeyListOpsMethods::getMean() {
 double KeyListOpsMethods::getStddev() {
 	if (empty()) return NAN;
 
-	double avg = getMean();
+	const double avg = getMean();
 	double squareDiffSum = 0.0;
 	for (begin(); !end(); next()) {
-		double val = getColValNum();
-		double diff = val - avg;
+		const double val = getColValNum();
+		const double diff = val - avg;
 		squareDiffSum += diff * diff;
 	}
 	return sqrt(squareDiffSum / (float)getCount());
@@ -72,11 +83,11 @@ double KeyListOpsMethods::getStddev() {
 double KeyListOpsMethods::getSampleStddev() {
 	if (empty()) return NAN;
 
-	double avg = getMean();
+	const double avg = getMean();
 	double squareDiffSum = 0.0;
 	for (begin(); !end(); next()) {
-		double val = getColValNum();
-		double diff = val - avg;
+		const double val = getColValNum();
+		const double diff = val - avg;
 		squareDiffSum += diff * diff;
 	}
 	return sqrt(squareDiffSum / ((float)getCount() - 1.0));
@@ -89,13 +100,13 @@ double KeyListOpsMethods::getMedian() {
 	//get sorted vector. if even number of elems, return middle val.
 	//if odd, average of two.
 	toArray(true, ASC);
-	size_t count = getCount();
+	const size_t count = getCount();
 	if (count % 2) {
 		//odd number of elements. Take middle one.
 		return _numArray[count/2];
 	} else {
 		//even numnber of elements. Take average of middle 2.
-		double sum = _numArray[count/2 -1] + _numArray[count/2];
+		const double sum = _numArray[count/2 -1] + _numArray[count/2];
 		return sum / 2.0;
 	}
 }
@@ -216,6 +227,8 @@ const string &KeyListOpsMethods::getDistinctOnly() {
 	return _retStr;
 }
 
+// Like getDistinct, but values are treated as numbers and emitted in sorted
+// (ascending by default, else descending) order with duplicates removed.
 const string &KeyListOpsMethods::getDistinctSortNum(bool asc) {
 	if (empty()) return _nullVal;
 	
@@ -288,7 +301,7 @@ const string &KeyListOpsMethods::getFreqDesc() {
 	for (histDescType::iterator histIter = hist.begin(); histIter != hist.end(); histIter++) {
 		if (histIter != hist.begin()) s << _delimStr;
 		s << histIter->second;
-		s << ":";
+		s << HIST_FREQ_SEPARATOR;
 		s << histIter->first;
 	}
 	_retStr.append(s.str());
@@ -312,7 +325,7 @@ const string &KeyListOpsMethods::getFreqAsc() {
 	for (histAscType::iterator histIter = hist.begin(); histIter != hist.end(); histIter++) {
 		if (histIter != hist.begin()) s << _delimStr;
 		s << histIter->second;
-		s << ":";
+		s << HIST_FREQ_SEPARATOR;
 		s << histIter->first;
 	}
 	_retStr.append(s.str());
@@ -338,12 +351,16 @@ const string &KeyListOpsMethods::getLast() {
 	return getColVal();
 }
 
+// Fetch the current record's value for the active column as a string,
+// substituting the null value for empty BAM fields.
 const string &KeyListOpsMethods::getColVal() {
 	const string &retVal = (*_iter)->getField(_column);
 	if (_isBam && retVal.empty()) return _nullVal;
 	return retVal;
 }
 
+// Fetch the current record's active-column value as a number. Flags a
+// non-numeric error (and returns NaN) when the field is not numeric.
 double KeyListOpsMethods::getColValNum() {
 	const string &strVal = (*_iter)->getField(_column);
 	if (!isNumeric(strVal)) {
@@ -360,6 +377,8 @@ double KeyListOpsMethods::getColValNum() {
 	return atof(strVal.c_str());
 }
 
+// Copy every record's active-column value into either the numeric or the
+// string working array, optionally sorting it afterwards.
 void KeyListOpsMethods::toArray(bool useNum, SORT_TYPE sortVal) {
 
 	//TBD: optimize performance with better memory management.
@@ -383,6 +402,7 @@ void KeyListOpsMethods::toArray(bool useNum, SORT_TYPE sortVal) {
 	}
 }
 
+// Sort whichever working array is in use, ascending or descending.
 void KeyListOpsMethods::sortArray(bool useNum, bool ascOrder)
 {
 	if (useNum) {
@@ -400,6 +420,8 @@ void KeyListOpsMethods::sortArray(bool useNum, bool ascOrder)
 	}
 }
 
+// Build a map from each distinct active-column value to its occurrence count,
+// and reset the shared frequency iterator to the start of that map.
 void KeyListOpsMethods::makeFreqMap() {
 	_freqMap.clear();
 

@@ -16,8 +16,23 @@ using namespace std;
 
 
 //************************************************
+// Named constants (replace hard-coded literals).
+//************************************************
+namespace WindowMakerConstants {
+    // Window numbering presented to the user is 1-based.
+    const uint32_t FIRST_WINDOW_INDEX = 1;
+}
+
+
+//************************************************
 // Class methods and elements
 //************************************************
+//
+// WindowMaker implements "bedtools makewindows": it subdivides either
+// the chromosomes of a genome file or the intervals of a BED file into
+// sub-windows, either of a fixed size (with an optional step) or a
+// fixed number of windows per interval.
+//
 class WindowMaker {
 
 public:

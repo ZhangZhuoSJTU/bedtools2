@@ -16,8 +16,13 @@ void BedPlusInterval::setNumFixedFields(int numFields) {
 
 bool BedPlusInterval::initFromFile(SingleLineDelimTextFileReader *fileReader)
 {
-	bool baseRetFlag = Bed3Interval::initFromFile(fileReader);
+	// Always parse the BED3 core first; the "plus" columns are layered on
+	// top of whatever fixed-field width this record was configured with.
+	bool parsedBase = Bed3Interval::initFromFile(fileReader);
 
+	// When the fixed portion is wider than BED3, pull the BED6 columns
+	// (name/score/strand at 0-based indices 3-5) before the trailing
+	// variable-width plus fields.
 	if (_numFixedFields != defaultNumFixedFields) {
 		fileReader->getField(3, _name);
 		fileReader->getField(4, _score);
@@ -25,7 +30,7 @@ bool BedPlusInterval::initFromFile(SingleLineDelimTextFileReader *fileReader)
 		adjustStrandVal();
 	}
 	_plusFields.initFromFile(fileReader);
-	return baseRetFlag;
+	return parsedBase;
 
 }
 

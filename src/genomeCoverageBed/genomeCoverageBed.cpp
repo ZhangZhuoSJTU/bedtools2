@@ -69,7 +69,7 @@ void BedGenomeCoverage::PrintTrackDefinitionLine()
 {
     //Print Track Definition line (if requested)
     if ( (_bedGraph||_bedGraphAll) && _add_gb_track_line) {
-        string line = "track type=bedGraph";
+        string line = GENOME_COVERAGE_BEDGRAPH_TRACK_TYPE;
         if (!_gb_track_line_opts.empty()) {
             line += " " ;
             line += _gb_track_line_opts ;
@@ -154,6 +154,10 @@ void BedGenomeCoverage::AddBlockedCoverage(const vector<BED> &bedBlocks) {
 }
 
 
+// Read every record from the BED/GFF/VCF input, accumulate per-base
+// coverage one chromosome at a time, and emit the requested report.
+// Honors the strand filter (-strand), split features (-split), and the
+// 5'/3' end-only modes (-5 / -3).
 void BedGenomeCoverage::CoverageBed() {
 
     BED a;
@@ -251,6 +255,10 @@ void BedGenomeCoverage::PrintFinalCoverage()
 }
 
 
+// Read every aligned record from a BAM input, convert each alignment to
+// interval coverage, and emit the requested report. Supports paired-end
+// ChIP fragment reconstruction (-pc), fixed fragment extension (-fs),
+// dUTP strand inversion (-du), and the 5'/3' end-only modes.
 void BedGenomeCoverage::CoverageBam(string bamFile) {
 
     ResetChromCoverage();
@@ -375,17 +383,25 @@ void BedGenomeCoverage::CoverageBam(string bamFile) {
 }
 
 
+// Emit one chromosome's coverage in whichever style the user selected:
+//   * -d / -dz : one line per base giving the depth at that position,
+//   * -bg / -bga: delegated to ReportChromCoverageBedGraph,
+//   * default   : accumulate the chromosome's depth histogram (and print
+//                 it), to be folded into the genome-wide histogram later.
+// The running depth at a position is the number of interval starts seen
+// up to and including that position minus the number of ends.
 void BedGenomeCoverage::ReportChromCoverage(const vector<DEPTH> &chromCov, const CHRPOS &chromSize, const string &chrom, chromHistMap &chromDepthHist) {
 
     if (_eachBase) {
         streamsize prec;
         std::ios_base::fmtflags fflags;
-        if(_scale == 1.0) {
+        if(_scale == GENOME_COVERAGE_DEFAULT_SCALE) {
             prec = cout.precision(0);
             fflags = cout.setf(std::ios_base::fixed);
         }
         int depth = 0; // initialize the depth
-        CHRPOS offset = (_eachBaseZeroBased)?0:1;
+        CHRPOS offset = (_eachBaseZeroBased) ? GENOME_COVERAGE_ZERO_BASED_OFFSET
+                                             : GENOME_COVERAGE_ONE_BASED_OFFSET;
         for (CHRPOS pos = 0; pos < chromSize; pos++) {
 
             depth += chromCov[pos].starts;
@@ -397,7 +413,7 @@ void BedGenomeCoverage::ReportChromCoverage(const vector<DEPTH> &chromCov, const
             }
             depth = depth - chromCov[pos].ends;
         }
-        if(_scale == 1.0) {
+        if(_scale == GENOME_COVERAGE_DEFAULT_SCALE) {
             cout.precision(prec);
             cout.setf(fflags);
         }
@@ -438,6 +454,10 @@ void BedGenomeCoverage::ReportChromCoverage(const vector<DEPTH> &chromCov, const
 
 
 
+// Fold every chromosome's depth histogram into a single genome-wide
+// histogram and report, for each depth, the number and fraction of bases
+// in the genome observed at that depth. Chromosomes absent from the input
+// contribute their full length to the zero-depth bin.
 void BedGenomeCoverage::ReportGenomeCoverage(chromHistMap &chromDepthHist) {
 
     // get the list of chromosome names in the genome
@@ -483,14 +503,18 @@ void BedGenomeCoverage::ReportGenomeCoverage(chromHistMap &chromDepthHist) {
 
 
 
+// Emit a chromosome's coverage as a bedGraph: collapse maximal runs of
+// consecutive positions that share the same depth into a single interval.
+// By default only non-zero-depth runs are printed; with -bga (bedGraphAll)
+// zero-depth runs are printed too. Depths are clamped to the -max bin.
 void BedGenomeCoverage::ReportChromCoverageBedGraph(const vector<DEPTH> &chromCov, const CHRPOS &chromSize, const string &chrom) {
 
     int depth = 0; // initialize the depth
-    CHRPOS lastStart = -1;
-    int lastDepth = -1;
+    CHRPOS lastStart = GENOME_COVERAGE_NO_START;
+    int lastDepth = GENOME_COVERAGE_NO_DEPTH;
     streamsize prec;
     std::ios_base::fmtflags fflags;
-    if(_scale == 1.0) {
+    if(_scale == GENOME_COVERAGE_DEFAULT_SCALE) {
         prec = cout.precision(0);
         fflags = cout.setf(std::ios_base::fixed);
     }
@@ -503,7 +527,7 @@ void BedGenomeCoverage::ReportChromCoverageBedGraph(const vector<DEPTH> &chromCo
             // Print if:
             // (1) depth>0 (the default running mode),
             // (2) depth==0 and the user requested to print zero covered regions (_bedGraphAll)
-            if ( (lastDepth != -1) && (lastDepth > 0 || _bedGraphAll) ) {
+            if ( (lastDepth != GENOME_COVERAGE_NO_DEPTH) && (lastDepth > 0 || _bedGraphAll) ) {
 
                 if (lastDepth >= _max) {
                     lastDepth = _max;
@@ -527,7 +551,7 @@ void BedGenomeCoverage::ReportChromCoverageBedGraph(const vector<DEPTH> &chromCo
         depth = depth - chromCov[pos].ends;
     }
     //Print information about the last position
-    if ( (lastDepth != -1) && (lastDepth > 0 || _bedGraphAll) ) {
+    if ( (lastDepth != GENOME_COVERAGE_NO_DEPTH) && (lastDepth > 0 || _bedGraphAll) ) {
         cout << chrom
              << "\t"
              << lastStart
@@ -537,7 +561,7 @@ void BedGenomeCoverage::ReportChromCoverageBedGraph(const vector<DEPTH> &chromCo
              << lastDepth * _scale
              << endl;
     }
-    if(_scale == 1.0) {
+    if(_scale == GENOME_COVERAGE_DEFAULT_SCALE) {
         cout.precision(prec);
         cout.setf(fflags);
     }

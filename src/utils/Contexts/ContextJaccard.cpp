@@ -20,7 +20,7 @@ ContextJaccard::~ContextJaccard() {
 bool ContextJaccard::parseCmdArgs(int argc, char **argv, int skipFirstArgs)
 {
 	for (_i=_skipFirstArgs; _i < argc; _i++) {
-		if (isUsed(_i - _skipFirstArgs)) {
+		if (isCurrentArgUsed()) {
 			continue;
 		}
 		else if (strcmp(_argv[_i], "-s") == 0) {
@@ -44,7 +44,7 @@ bool ContextJaccard::isValidState()
 bool ContextJaccard::handle_s() {
 	setSameStrand(true);
 	_desiredStrand = FileRecordMergeMgr::SAME_STRAND_EITHER;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
@@ -59,9 +59,9 @@ bool ContextJaccard::handle_S() {
 			_desiredStrand = FileRecordMergeMgr::SAME_STRAND_REVERSE;
     	}
     	if (validChar) {
-			markUsed(_i - _skipFirstArgs);
+			markCurrentArgUsed();
 			_i++;
-			markUsed(_i - _skipFirstArgs);
+			markCurrentArgUsed();
 			setSameStrand(true);
 			return true;
     	}

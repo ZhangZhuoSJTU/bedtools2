@@ -12,8 +12,11 @@
 #include "lineFileUtilities.h"
 #include "flankBed.h"
 
+using namespace FlankBedConstants;
 
-BedFlank::BedFlank(string &bedFile, string &genomeFile, bool forceStrand, 
+
+// Constructor: store the options, open the BED and genome files, and run.
+BedFlank::BedFlank(string &bedFile, string &genomeFile, bool forceStrand,
                    float leftFlank, float rightFlank, bool fractional,
                    bool printHeader) 
 {
@@ -39,6 +42,9 @@ BedFlank::~BedFlank(void) {
 }
 
 
+// Stream the input BED file one feature at a time and emit the flank(s)
+// for each valid feature, converting fractional flanks to bp when -pct
+// was requested and choosing the stranded variant when -s is in effect.
 void BedFlank::FlankBed() {
 
     BED bedEntry;     // used to store the current BED line from the BED file.
@@ -58,11 +64,11 @@ void BedFlank::FlankBed() {
                 rightFlank = (int) (_rightFlank * bedEntry.size());
             }
             
-            if ((_forceStrand == false) || (bedEntry.strand == "+"))
+            if ((_forceStrand == false) || (bedEntry.strand == STRAND_FORWARD))
             {
                 AddFlank(bedEntry,  leftFlank, rightFlank);
             }
-            else if ((_forceStrand == true) && (bedEntry.strand == "-" ))
+            else if ((_forceStrand == true) && (bedEntry.strand == STRAND_REVERSE ))
             {
                 AddStrandedFlank(bedEntry,  leftFlank, rightFlank);                    
             }
@@ -72,12 +78,15 @@ void BedFlank::FlankBed() {
 }
 
 
+// Create the left and right flanks for a feature on the forward strand
+// (or when strand is not being enforced). Each flank is only reported when
+// it has non-zero length and stays within the chromosome bounds.
 void BedFlank::AddFlank(BED &bed, int leftFlank, int rightFlank) {
 
-    int chromSize = _genome->getChromSize(bed.chrom);
-    if (chromSize == -1) {
+    const int chromSize = _genome->getChromSize(bed.chrom);
+    if (chromSize == CHROM_NOT_FOUND) {
         cerr << "ERROR: chrom \"" << bed.chrom << "\" not found in genome file. Exiting." << endl;
-        exit(1);
+        exit(EXIT_FAILURE_STATUS);
     }
 
     // init. our left and right flanks to the original BED entry.
@@ -93,7 +102,7 @@ void BedFlank::AddFlank(BED &bed, int leftFlank, int rightFlank) {
     // make the left flank (if necessary)
     // do not report a left flank if the left feature start is already
     // the very first base of the scaffold
-    if ((leftFlank > 0) && (feature.start != 0)) {
+    if ((leftFlank > 0) && (feature.start != CHROM_FIRST_BASE)) {
         if ( (static_cast<int>(feature.start) - leftFlank) > 0)
         {
             left.end    = feature.start;
@@ -128,12 +137,15 @@ void BedFlank::AddFlank(BED &bed, int leftFlank, int rightFlank) {
 }
 
 
+// Create flanks for a feature on the reverse strand. The "left" and "right"
+// flanks are swapped relative to AddFlank so that, in biological terms,
+// upstream/downstream are reported consistently with the feature's strand.
 void BedFlank::AddStrandedFlank(BED &bed, int leftFlank, int rightFlank) {
 
-    int chromSize = _genome->getChromSize(bed.chrom);
-    if (chromSize == -1) {
+    const int chromSize = _genome->getChromSize(bed.chrom);
+    if (chromSize == CHROM_NOT_FOUND) {
         cerr << "ERROR: chrom \"" << bed.chrom << "\" not found in genome file. Exiting." << endl;
-        exit(1);
+        exit(EXIT_FAILURE_STATUS);
     }
 
     // init. our left and right flanks to the original BED entry.
@@ -145,7 +157,7 @@ void BedFlank::AddStrandedFlank(BED &bed, int leftFlank, int rightFlank) {
     // make the right flank (if necessary)
     // Do not flank if the right flank of the feature (which is feature.start)
     // since in reverse strand is first base of scaffold
-    if (rightFlank > 0 && (feature.start != 0)) {
+    if (rightFlank > 0 && (feature.start != CHROM_FIRST_BASE)) {
         if ( (static_cast<int>(feature.start) - rightFlank) > 0)
         {
             left.end    = feature.start;

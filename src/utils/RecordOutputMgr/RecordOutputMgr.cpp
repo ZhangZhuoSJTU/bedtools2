@@ -28,6 +28,23 @@
 #include <cstdio>
 
 
+// Placeholder tokens emitted into textual output for the various
+// "no hit" / "no data" scenarios, kept here so the intent of each bare
+// literal is obvious at the call site.
+namespace {
+	// Printed in the database-file-id column when a dummy id is required.
+	const char *const DUMMY_DB_FILE_ID = ".";
+	// Overlap-base count printed when a forced report has zero overlap.
+	const char *const ZERO_OVERLAP_BASES = "0";
+	// Distance printed for a query that had no closest hit.
+	const char *const NO_CLOSEST_DISTANCE = "-1";
+
+	// A dummy database-file-id column is only needed when more than this many
+	// input files are present (i.e. multiple database files).
+	const size_t MIN_FILES_FOR_DUMMY_DB_ID = 2;
+}
+
+
 RecordOutputMgr::RecordOutputMgr()
 : _context(NULL),
   _printable(true),
@@ -57,6 +74,9 @@ RecordOutputMgr::~RecordOutputMgr()
 
 }
 
+// Configure the output manager for a run: set up the BAM writer for BAM output
+// or reserve the text output buffer otherwise, and determine whether records
+// are "printable" in full or only summarized (counts / any-hit / no-hit).
 void RecordOutputMgr::init(ContextBase *context) {
 	_context = context;
 	if (_context->getOutputFileType() == FileRecordTypeChecker::BAM_FILE_TYPE) {
@@ -77,15 +97,19 @@ void RecordOutputMgr::init(ContextBase *context) {
 		_outBuf.reserve(MAX_OUTBUF_SIZE);
 	}
 	if (_context->getProgram() == ContextBase::INTERSECT) {
-		if ((static_cast<ContextIntersect *>(_context))->getAnyHit() || 
-			(static_cast<ContextIntersect *>(_context))->getNoHit() ||
-			(static_cast<ContextIntersect *>(_context))->getWriteCount() ||
-			(static_cast<ContextIntersect *>(_context))->getWriteCountsPerDatabase()) {
+		ContextIntersect *intersectContext = static_cast<ContextIntersect *>(_context);
+		if (intersectContext->getAnyHit() ||
+			intersectContext->getNoHit() ||
+			intersectContext->getWriteCount() ||
+			intersectContext->getWriteCountsPerDatabase()) {
 			_printable = false;
 		}
 	}
 }
 
+// Print just the key record of the list. Returns true if the record was
+// emitted as native BAM (so the caller should not append any text fields),
+// and false when it was written to the text output buffer.
 bool RecordOutputMgr::printKeyAndTerminate(RecordKeyVector &keyList) {
 	if (_context->getProgram() == ContextBase::MERGE) {
 		//when printing merged records, we want to force the printing into
@@ -106,6 +130,10 @@ bool RecordOutputMgr::printKeyAndTerminate(RecordKeyVector &keyList) {
 
 }
 
+// Handle a key record that may be BAM. Depending on the configured output
+// type the record is either saved via the BAM writer (BAM_AS_BAM), rendered
+// as text/BED into the output buffer (BAM_AS_BED), or left untouched because
+// it is not a BAM record at all (NOT_BAM).
 RecordOutputMgr::printBamType RecordOutputMgr::printBamRecord(RecordKeyVector &keyList, bool bamOutputOnly)
 {
 	const Record *record = keyList.getKey();
@@ -127,14 +155,17 @@ RecordOutputMgr::printBamType RecordOutputMgr::printBamRecord(RecordKeyVector &k
 	return NOT_BAM;
 }
 
+// Convenience overload: wrap a single record in a key vector and print it.
 void RecordOutputMgr::printRecord(Record *record)
 {
 	RecordKeyVector keyList(record);
 	printRecord(keyList);
 }
 
+// Emit a record followed by an arbitrary trailing value (e.g. a column
+// operation result), tab-separated when both are present, then a newline.
 void RecordOutputMgr::printRecord(Record *record, const string & value)
-{	
+{
 	checkForHeader();
 
 	_afterVal = value;
@@ -152,6 +183,9 @@ void RecordOutputMgr::printRecord(Record *record, const string & value)
 	if (needsFlush()) flush();
 }
 
+// Emit a query record with each of its closest hits (one line per hit),
+// optionally appending the signed or absolute distance to each. When no hits
+// were found, a single line with a null hit (and distance -1) is emitted.
 void RecordOutputMgr::printClosest(RecordKeyVector &keyList, const vector<CHRPOS> *dists) {
 
 	//The first time we print a record is when we print any header, because the header
@@ -204,14 +238,14 @@ void RecordOutputMgr::printClosest(RecordKeyVector &keyList, const vector<CHRPOS
 		printKey(keyRec, keyRec->getStartPosStr(), keyRec->getEndPosStr());
 		tab();
 		// need to add a dummy file id if multiple DB files are used
-		if (_context->getNumInputFiles() > 2) {
-			_outBuf.append(".");
+		if (_context->getNumInputFiles() > MIN_FILES_FOR_DUMMY_DB_ID) {
+			_outBuf.append(DUMMY_DB_FILE_ID);
 			tab();
-		}		
+		}
 		null(false, true);
 		if (context->reportDistance()) {
 			tab();
-			_outBuf.append("-1");
+			_outBuf.append(NO_CLOSEST_DISTANCE);
 		}
 		newline();
 	}
@@ -223,6 +257,8 @@ void RecordOutputMgr::printClosest(RecordKeyVector &keyList, const vector<CHRPOS
 }
 
 
+// Print a key record and its hits, first gathering BAM block lists when the key
+// is a BAM record so split alignments render correctly.
 void RecordOutputMgr::printRecord(RecordKeyVector &keyList) {
 	if (keyList.getKey()->getType() == FileRecordTypeChecker::BAM_RECORD_TYPE) {
 		RecordKeyVector blockList(keyList.getKey());
@@ -238,6 +274,9 @@ void RecordOutputMgr::printRecord(RecordKeyVector &keyList) {
 
 }
 
+// The main dispatcher: based on the active program (intersect/subtract, sample,
+// map, merge, ...) and the user's options, emit the key record and its hits in
+// the correct layout, handling the empty-hit, printable, and summary cases.
 void RecordOutputMgr::printRecord(RecordKeyVector &keyList, RecordKeyVector *blockList)
 {
 	if (needsFlush()) {
@@ -252,9 +291,10 @@ void RecordOutputMgr::printRecord(RecordKeyVector &keyList, RecordKeyVector *blo
 	_currBamBlockList = blockList;
 
 	if (_context->getProgram() == ContextBase::INTERSECT || _context->getProgram() == ContextBase::SUBTRACT) {
+		ContextIntersect *intersectContext = static_cast<ContextIntersect *>(_context);
 		if (_printable) {
 			if (keyList.empty()) {
-				if ((static_cast<ContextIntersect *>(_context))->getWriteAllOverlap())
+				if (intersectContext->getWriteAllOverlap())
 				{
 					// -wao the user wants to force the reporting of 0 overlap
 					if (printKeyAndTerminate(keyList)) {
@@ -265,17 +305,17 @@ void RecordOutputMgr::printRecord(RecordKeyVector &keyList, RecordKeyVector *blo
 					}
 					tab();
 					// need to add a dummy file id if multiple DB files are used
-					if (_context->getNumInputFiles() > 2) {
-						_outBuf.append(".");
+					if (_context->getNumInputFiles() > MIN_FILES_FOR_DUMMY_DB_ID) {
+						_outBuf.append(DUMMY_DB_FILE_ID);
 						tab();
 					}
 					null(false, true);
 					tab();
-					_outBuf.append("0");
+					_outBuf.append(ZERO_OVERLAP_BASES);
 					newline();
 					if (needsFlush()) flush();
 				}
-				else if ((static_cast<ContextIntersect *>(_context))->getLeftJoin()) 
+				else if (intersectContext->getLeftJoin())
 				{
 					if (printKeyAndTerminate(keyList)) {
 						_currBamBlockList = NULL;
@@ -285,8 +325,8 @@ void RecordOutputMgr::printRecord(RecordKeyVector &keyList, RecordKeyVector *blo
 					}
 					tab();
 					// need to add a dummy file id if multiple DB files are used
-					if (_context->getNumInputFiles() > 2) {
-						_outBuf.append(".");
+					if (_context->getNumInputFiles() > MIN_FILES_FOR_DUMMY_DB_ID) {
+						_outBuf.append(DUMMY_DB_FILE_ID);
 						tab();
 					}
 					null(false, true);
@@ -296,8 +336,8 @@ void RecordOutputMgr::printRecord(RecordKeyVector &keyList, RecordKeyVector *blo
 
 					return;
 				}
-			} 
-			else 
+			}
+			else
 			{
 				if (printBamRecord(keyList, true) == BAM_AS_BAM) {
 					_currBamBlockList = NULL;
@@ -332,6 +372,9 @@ void RecordOutputMgr::printRecord(RecordKeyVector &keyList, RecordKeyVector *blo
 
 }
 
+// Emit the appropriate file header exactly once, before any records. The header
+// source depends on the tool: groupBy may use a default header, intersection
+// tools use the query file's header, and everything else uses file 0's header.
 void RecordOutputMgr::checkForHeader() {
 	// Do we need to print a header?
 	if (!_context->getPrintHeader()) return;
@@ -360,6 +403,8 @@ void RecordOutputMgr::checkForHeader() {
 	flush();
 }
 
+// Emit one query/hit pair, honoring the -wa/-wb/-wo/-loj combination of
+// options that controls exactly which columns are written.
 void RecordOutputMgr::reportOverlapDetail(const Record *keyRecord, const Record *hitRecord, int hitIdx)
 {
 
@@ -372,14 +417,16 @@ void RecordOutputMgr::reportOverlapDetail(const Record *keyRecord, const Record 
 	if (!keyRecord->isZeroBased())
 		maxStart++;
 
+	const ContextIntersect *intersectContext = static_cast<ContextIntersect *>(_context);
+
 	// all of the different printing scenarios based upon the options used.
-	if (!(static_cast<ContextIntersect *>(_context))->getWriteA() && !(static_cast<ContextIntersect *>(_context))->getWriteB()
-			&& !(static_cast<ContextIntersect *>(_context))->getWriteOverlap() && !(static_cast<ContextIntersect *>(_context))->getLeftJoin()) {
+	if (!intersectContext->getWriteA() && !intersectContext->getWriteB()
+			&& !intersectContext->getWriteOverlap() && !intersectContext->getLeftJoin()) {
 		const_cast<Record *>(keyRecord)->undoZeroLength();
 		printKey(keyRecord, maxStart, minEnd);
 	}
-	else if (((static_cast<ContextIntersect *>(_context))->getWriteA() &&
-			(static_cast<ContextIntersect *>(_context))->getWriteB()) || (static_cast<ContextIntersect *>(_context))->getLeftJoin()) {
+	else if ((intersectContext->getWriteA() &&
+			intersectContext->getWriteB()) || intersectContext->getLeftJoin()) {
 		const_cast<Record *>(keyRecord)->undoZeroLength();
 		printKey(keyRecord);
 		tab();
@@ -387,18 +434,18 @@ void RecordOutputMgr::reportOverlapDetail(const Record *keyRecord, const Record 
 		addDbFileId(hitRecord->getFileIdx());
 		hitRecord->print(_outBuf);
 	}
-	else if ((static_cast<ContextIntersect *>(_context))->getWriteA()) {
+	else if (intersectContext->getWriteA()) {
 		const_cast<Record *>(keyRecord)->undoZeroLength();
 		printKey(keyRecord);
 	}
-	else if ((static_cast<ContextIntersect *>(_context))->getWriteB()) {
+	else if (intersectContext->getWriteB()) {
 		printKey(keyRecord, maxStart, minEnd);
 		tab();
 		addDbFileId(hitRecord->getFileIdx());
 		const_cast<Record *>(hitRecord)->undoZeroLength();
 		hitRecord->print(_outBuf);
 	}
-	else if ((static_cast<ContextIntersect *>(_context))->getWriteOverlap()) {
+	else if (intersectContext->getWriteOverlap()) {
 		int overlapBases = 0;
 		if (_context->getObeySplits()) {
 			overlapBases = _context->getSplitBlockInfo()->getOverlapBases(hitIdx);
@@ -430,16 +477,19 @@ void RecordOutputMgr::reportOverlapDetail(const Record *keyRecord, const Record 
 	const_cast<Record *>(hitRecord)->adjustZeroLength();
 }
 
+// Emit the per-query summary output used by the non-"printable" modes:
+// -u (any hit), -c (count), -C (per-database count), and -v (no hit).
 void RecordOutputMgr::reportOverlapSummary(RecordKeyVector &keyList)
 {
+	ContextIntersect *intersectContext = static_cast<ContextIntersect *>(_context);
 	int numOverlapsFound = (int)keyList.size();
-	if ((static_cast<ContextIntersect *>(_context))->getAnyHit() && numOverlapsFound > 0) {
+	if (intersectContext->getAnyHit() && numOverlapsFound > 0) {
 		if (printKeyAndTerminate(keyList)) {
 			return;
 		}
 		newline();
 		if (needsFlush()) flush();
-	} else if ((static_cast<ContextIntersect *>(_context))->getWriteCount()) {
+	} else if (intersectContext->getWriteCount()) {
 		if (printKeyAndTerminate(keyList)) {
 			return;
 		}
@@ -447,9 +497,9 @@ void RecordOutputMgr::reportOverlapSummary(RecordKeyVector &keyList)
 		int2str(numOverlapsFound, _outBuf, true);
 		newline();
 		if (needsFlush()) flush();
-	} 
-	else if ((static_cast<ContextIntersect *>(_context))->getWriteCountsPerDatabase()) {
-		int query_file_idx = (static_cast<ContextIntersect *>(_context))->getQueryFileIdx();
+	}
+	else if (intersectContext->getWriteCountsPerDatabase()) {
+		int query_file_idx = intersectContext->getQueryFileIdx();
 		// build a map of the hit counts per database
 		map<int, int> db_counts; 
 		// initialize to 0 for all files (-A is file 0)
@@ -478,7 +528,7 @@ void RecordOutputMgr::reportOverlapSummary(RecordKeyVector &keyList)
 		}
 		if (needsFlush()) flush();
 	}
-	else if ((static_cast<ContextIntersect *>(_context))->getNoHit() && numOverlapsFound == 0) {
+	else if (intersectContext->getNoHit() && numOverlapsFound == 0) {
 		if (printKeyAndTerminate(keyList)) {
 			return;
 		}
@@ -488,12 +538,13 @@ void RecordOutputMgr::reportOverlapSummary(RecordKeyVector &keyList)
 }
 
 void RecordOutputMgr::addDbFileId(int fileId) {
+	ContextIntersect *intersectContext = static_cast<ContextIntersect *>(_context);
 	ostringstream s;
-	if ((static_cast<ContextIntersect *>(_context))->getNumDatabaseFiles()  == 1) return;
+	if (intersectContext->getNumDatabaseFiles() == 1) return;
 	if (!_context->getUseDBnameTags() && (!_context->getUseDBfileNames())) {
 		s << fileId;
 	} else if (_context->getUseDBnameTags()){
-		s << (static_cast<ContextIntersect *>(_context))->getDatabaseNameTag((static_cast<ContextIntersect *>(_context))->getDbIdx(fileId));
+		s << intersectContext->getDatabaseNameTag(intersectContext->getDbIdx(fileId));
 	} else {
 		s << _context->getInputFileName(fileId);
 	}
@@ -501,14 +552,19 @@ void RecordOutputMgr::addDbFileId(int fileId) {
 	tab();
 }
 
+// Emit the "null"/blank representation of a record. Because printing the
+// placeholder requires an instance of the correct record subclass, a dummy
+// record of the appropriate type is constructed, asked to print its null
+// form, and then deleted.
 void RecordOutputMgr::null(bool queryType, bool dbType)
 {
 	FileRecordTypeChecker::RECORD_TYPE recordType = FileRecordTypeChecker::UNKNOWN_RECORD_TYPE;
+	ContextIntersect *intersectContext = static_cast<ContextIntersect *>(_context);
 	if (_context->hasIntersectMethods()) {
 		if (queryType) {
-			recordType = (static_cast<ContextIntersect *>(_context))->getQueryRecordType();
+			recordType = intersectContext->getQueryRecordType();
 		} else if (dbType) {
-			recordType = (static_cast<ContextIntersect *>(_context))->getDatabaseRecordType(0);
+			recordType = intersectContext->getDatabaseRecordType(0);
 		}
 	} else  {
 		recordType = _context->getFile(0)->getRecordType();
@@ -536,26 +592,26 @@ void RecordOutputMgr::null(bool queryType, bool dbType)
 		break;
 	case FileRecordTypeChecker::BED_PLUS_RECORD_TYPE:
 		dummyRecord = new BedPlusInterval();
-		(static_cast<BedPlusInterval *>(dummyRecord))->setNumPrintFields((static_cast<ContextIntersect *>(_context))->getMaxNumDatabaseFields());
+		(static_cast<BedPlusInterval *>(dummyRecord))->setNumPrintFields(intersectContext->getMaxNumDatabaseFields());
 		break;
 	case FileRecordTypeChecker::BED6_PLUS_RECORD_TYPE:
 		dummyRecord = new BedPlusInterval();
-		(static_cast<BedPlusInterval *>(dummyRecord))->setNumPrintFields((static_cast<ContextIntersect *>(_context))->getMaxNumDatabaseFields());
+		(static_cast<BedPlusInterval *>(dummyRecord))->setNumPrintFields(intersectContext->getMaxNumDatabaseFields());
 		break;
 	case FileRecordTypeChecker::VCF_RECORD_TYPE:
 		dummyRecord = new VcfRecord();
-		(static_cast<VcfRecord *>(dummyRecord))->setNumPrintFields((static_cast<ContextIntersect *>(_context))->getMaxNumDatabaseFields());
+		(static_cast<VcfRecord *>(dummyRecord))->setNumPrintFields(intersectContext->getMaxNumDatabaseFields());
 		break;
 	case FileRecordTypeChecker::BAM_RECORD_TYPE:
 		dummyRecord = new BamRecord();
 		break;
 	case FileRecordTypeChecker::GFF_RECORD_TYPE:
 		dummyRecord = new GffRecord();
-		(static_cast<GffRecord *>(dummyRecord))->setNumFields((static_cast<ContextIntersect *>(_context))->getMaxNumDatabaseFields());
+		(static_cast<GffRecord *>(dummyRecord))->setNumFields(intersectContext->getMaxNumDatabaseFields());
 		break;
 	case FileRecordTypeChecker::GFF_PLUS_RECORD_TYPE:
 		dummyRecord = new GffPlusRecord();
-		(static_cast<GffRecord *>(dummyRecord))->setNumFields((static_cast<ContextIntersect *>(_context))->getMaxNumDatabaseFields());
+		(static_cast<GffRecord *>(dummyRecord))->setNumFields(intersectContext->getMaxNumDatabaseFields());
 		break;
 	default:
 		dummyRecord = new Bed3Interval();
@@ -567,6 +623,8 @@ void RecordOutputMgr::null(bool queryType, bool dbType)
 	}
 }
 
+// Print a key record with explicit (string) start/end, dispatching to the BAM
+// renderer when the key is a BAM record.
 void RecordOutputMgr::printKey(const Record *key, const string & start, const string & end)
 {
 	if (key->getType() != FileRecordTypeChecker::BAM_RECORD_TYPE) {
@@ -585,6 +643,8 @@ void RecordOutputMgr::printKey(const Record *key, CHRPOS start, CHRPOS end)
 	}
 }
 
+// Print a key record using its own coordinates, dispatching to the BAM renderer
+// when the key is a BAM record.
 void RecordOutputMgr::printKey(const Record *key)
 {
 	if (key->getType() != FileRecordTypeChecker::BAM_RECORD_TYPE) {
@@ -594,6 +654,7 @@ void RecordOutputMgr::printKey(const Record *key)
 	}
 }
 
+// Write the accumulated text output buffer to stdout and reset it.
 void RecordOutputMgr::flush() {
 	fwrite(_outBuf.c_str(), 1, _outBuf.size(), stdout);
 	_outBuf.clear();

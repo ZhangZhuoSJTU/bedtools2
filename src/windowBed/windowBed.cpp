@@ -12,9 +12,16 @@
 #include "lineFileUtilities.h"
 #include "windowBed.h"
 
+// Bring the named replacements for previously hard-coded literals into scope.
+using namespace WindowBedConstants;
+
 
 /*
     Constructor
+
+    Stores the user's options, opens the A and B BedFile objects, and
+    immediately dispatches to the BED or BAM intersection routine
+    depending on whether the A input is BAM.
 */
 BedWindow::BedWindow(string bedAFile, string bedBFile, int leftSlop, int rightSlop,
                      bool anyHit, bool noHit, bool writeCount, bool strandWindows,
@@ -73,8 +80,8 @@ void BedWindow::FindWindowOverlaps(const BED &a, vector<BED> &hits) {
         Now report the hits (if any) based on the window around a.
     */
     // get the hits in B for the A feature
-    _bedB->allHits(a.chrom, aFudgeStart, aFudgeEnd, a.strand, hits, 
-                   _matchOnSameStrand, _matchOnDiffStrand, 0.0, false);
+    _bedB->allHits(a.chrom, aFudgeStart, aFudgeEnd, a.strand, hits,
+                   _matchOnSameStrand, _matchOnDiffStrand, ANY_OVERLAP_FRACTION, false);
 
     int numOverlaps = 0;
 
@@ -83,10 +90,10 @@ void BedWindow::FindWindowOverlaps(const BED &a, vector<BED> &hits) {
     vector<BED>::const_iterator hitsEnd = hits.end();
     for (; h != hitsEnd; ++h) {
 
-        int s = max(aFudgeStart, h->start);
-        int e = min(aFudgeEnd, h->end);
-        int overlapBases = (e - s);             // the number of overlapping bases b/w a and b
-        int aLength = (a.end - a.start);        // the length of a in b.p.
+        const int s = max(aFudgeStart, h->start);
+        const int e = min(aFudgeEnd, h->end);
+        const int overlapBases = (e - s);       // the number of overlapping bases b/w a and b
+        const int aLength = (a.end - a.start);   // the length of a in b.p.
 
         if (s < e) {
             // is there enough overlap (default ~ 1bp)
@@ -118,12 +125,15 @@ bool BedWindow::FindOneOrMoreWindowOverlaps(const BED &a) {
     CHRPOS aFudgeEnd;
     AddWindow(a, aFudgeStart, aFudgeEnd);
 
-    bool overlapsFound = _bedB->anyHits(a.chrom, aFudgeStart, aFudgeEnd, a.strand, 
-                                        _matchOnSameStrand, _matchOnDiffStrand, 0.0, false);
+    bool overlapsFound = _bedB->anyHits(a.chrom, aFudgeStart, aFudgeEnd, a.strand,
+                                        _matchOnSameStrand, _matchOnDiffStrand,
+                                        ANY_OVERLAP_FRACTION, false);
     return overlapsFound;
 }
 
 
+// Stream the plain-text "A" BED file, comparing every valid feature
+// against the pre-loaded "B" interval map.
 void BedWindow::WindowIntersectBed() {
 
     // load the "B" bed file into a map so
@@ -132,7 +142,7 @@ void BedWindow::WindowIntersectBed() {
 
     BED a;
     vector<BED> hits;
-    hits.reserve(100);
+    hits.reserve(DEFAULT_HITS_RESERVE);
 
     _bedA->Open();
     // report A's header first if asked.
@@ -149,6 +159,8 @@ void BedWindow::WindowIntersectBed() {
 }
 
 
+// Stream a BAM "A" file: convert every mapped alignment into a BED6
+// feature, test it against the "B" map, and emit either BAM or BED.
 void BedWindow::WindowIntersectBam(string bamFile) {
 
     // load the "B" bed file into a map so
@@ -160,7 +172,7 @@ void BedWindow::WindowIntersectBam(string bamFile) {
     BamWriter writer;
     if (!reader.Open(bamFile)) {
         cerr << "Failed to open BAM file " << bamFile << endl;
-        exit(1);
+        exit(EXIT_FAILURE_STATUS);
     }
 
 
@@ -180,9 +192,9 @@ void BedWindow::WindowIntersectBam(string bamFile) {
 
     vector<BED> hits;                   // vector of potential hits
     // reserve some space
-    hits.reserve(100);
+    hits.reserve(DEFAULT_HITS_RESERVE);
 
-    _bedA->bedType = 6;
+    _bedA->bedType = BED6_FIELD_COUNT;
     BamAlignment bam;
     bool overlapsFound;
     // get each set of alignments for each pair.
@@ -196,11 +208,11 @@ void BedWindow::WindowIntersectBam(string bamFile) {
 
             // build the name field from the BAM alignment.
             a.name = bam.Name;
-            if (bam.IsFirstMate()) a.name += "/1";
-            if (bam.IsSecondMate()) a.name += "/2";
+            if (bam.IsFirstMate()) a.name += MATE_ONE_SUFFIX;
+            if (bam.IsSecondMate()) a.name += MATE_TWO_SUFFIX;
 
             a.score  = ToString(bam.MapQuality);
-            a.strand = "+"; if (bam.IsReverseStrand()) a.strand = "-";
+            a.strand = STRAND_FORWARD; if (bam.IsReverseStrand()) a.strand = STRAND_REVERSE;
 
             if (_bamOutput == true) {
                 overlapsFound = FindOneOrMoreWindowOverlaps(a);
@@ -232,6 +244,9 @@ void BedWindow::WindowIntersectBam(string bamFile) {
 }
 
 
+// Compute the windowed [fudgeStart, fudgeEnd) coordinates for feature "a"
+// by applying the left/right slop. The start is clamped at 0 so the window
+// never extends before the beginning of the chromosome.
 void BedWindow::AddWindow(const BED &a, CHRPOS &fudgeStart, CHRPOS &fudgeEnd) {
     // Does the user want to treat the windows based on strand?
     // If so,

@@ -33,6 +33,31 @@ using namespace std;
 #define PARAMETER_CHECK(param, paramLen, actualLen) (strncmp(argv[i], param, min(actualLen, paramLen))== 0) && (actualLen == paramLen)
 
 
+//************************************************
+// Named constants (replace hard-coded literals).
+// bamToBed has no companion header, so these file-scope constants (which
+// have internal linkage) live at the top of the translation unit.
+//************************************************
+namespace {
+    // Read-name suffixes marking the first/second mate of a pair.
+    const char * const MATE_ONE_SUFFIX = "/1";
+    const char * const MATE_TWO_SUFFIX = "/2";
+
+    // Strand symbols.
+    const char * const STRAND_FORWARD = "+";
+    const char * const STRAND_REVERSE = "-";
+
+    // BAM auxiliary tag holding the alignment edit distance.
+    const char * const EDIT_DISTANCE_TAG = "NM";
+
+    // Fallback number of alignments when the relevant count tag is absent.
+    const uint32_t SINGLE_MAPPING = 1;
+
+    // Process exit status used on fatal errors.
+    const int EXIT_FAILURE_STATUS = 1;
+}
+
+
 // function declarations
 void bamtobed_help(void);
 
@@ -53,9 +78,9 @@ void PrintBed(const BamAlignment &bam, const RefVector &refs,
               bool useCigar, bool useNovoalign, 
               bool useBWA);
               
-void PrintBed12(const BamAlignment &bam, const RefVector &refs, 
+void PrintBed12(const BamAlignment &bam, const RefVector &refs,
                 bool useEditDistance, const string &bamTag,
-                bool obeySplits, bool splitOnDeletions, 
+                bool obeySplits, bool splitOnDeletions,
                 string color = "255,0,0");
 
 void PrintBedPE(const BamAlignment &bam1, const BamAlignment &bam2,
@@ -69,6 +94,9 @@ string BuildCigarString(const vector<CigarOp> &cigar);
 bool bamtobed_IsCorrectMappingForBEDPE (const BamAlignment &bam);
 
 
+// Entry point for "bedtools bamtobed". Parses the options, validates the
+// mutually incompatible flag combinations, then dispatches to either the
+// BED/BED12 converter or the BEDPE converter.
 int bamtobed_main(int argc, char* argv[]) {
 
     // our configuration variables
@@ -277,16 +305,18 @@ void bamtobed_help(void) {
 }
 
 
+// Convert a BAM file to BED: for every mapped alignment emit either a plain
+// BED6 record or a blocked BED12 record (when -bed12 was requested).
 void ConvertBamToBed(const string &bamFile, bool useEditDistance, const string &bamTag,
-                     bool writeBed12, bool obeySplits, bool splitOnDeletions, 
-                     const string &color, bool useCigar, bool useNovoalign, bool useBWA) 
+                     bool writeBed12, bool obeySplits, bool splitOnDeletions,
+                     const string &color, bool useCigar, bool useNovoalign, bool useBWA)
 {
-    
+
     // open the BAM file
     BamReader reader;
     if (!reader.Open(bamFile)) {
         cerr << "Failed to open BAM file " << bamFile << endl;
-        exit(1);
+        exit(EXIT_FAILURE_STATUS);
     }
 
     // get header & reference information
@@ -314,15 +344,15 @@ void ConvertBamToBed(const string &bamFile, bool useEditDistance, const string &
      1.  The BAM file is grouped/sorted by query name,
          not alignment position
 */
-void ConvertBamToBedpe(const string &bamFile, 
+void ConvertBamToBedpe(const string &bamFile,
                        const bool &useEditDistance,
-                       bool mate1First) 
+                       bool mate1First)
 {
     // open the BAM file
     BamReader reader;
     if (!reader.Open(bamFile)) {
         cerr << "Failed to open BAM file " << bamFile << endl;
-        exit(1);
+        exit(EXIT_FAILURE_STATUS);
     }
 
     // get header & reference information
@@ -356,6 +386,8 @@ void ConvertBamToBedpe(const string &bamFile,
 }
 
 
+// Reconstruct the textual CIGAR string (e.g. "10M2I88M") from the parsed
+// vector of CIGAR operations, keeping only the recognised operation types.
 string BuildCigarString(const vector<CigarOp> &cigar) {
 
     stringstream cigarString;
@@ -376,6 +408,8 @@ string BuildCigarString(const vector<CigarOp> &cigar) {
     return cigarString.str();
 }
 
+// Return the numeric value of a BAM auxiliary tag as a string, trying both an
+// unsigned and a signed interpretation; aborts if the tag is missing.
 string PrintTag(const BamAlignment &bam, const string &tag)
 {
     uint32_t uTagValue;
@@ -386,28 +420,31 @@ string PrintTag(const BamAlignment &bam, const string &tag)
     else if (bam.GetTag(tag, sTagValue))
         value << sTagValue;
     else {
-        cerr << "The requested tag (" 
-             << tag 
+        cerr << "The requested tag ("
+             << tag
              << ") was not found in the BAM file.  Exiting\n";
-        exit(1);
+        exit(EXIT_FAILURE_STATUS);
     }
     return value.str();
 }
 
-void PrintBed(const BamAlignment &bam,  const RefVector &refs, 
-              bool useEditDistance, const string &bamTag, 
+// Emit a single BAM alignment in BED6 format (optionally with a CIGAR column,
+// or in the custom Novoalign/BWA layouts). When -split is in effect, each
+// aligned block of the CIGAR is written as its own BED record.
+void PrintBed(const BamAlignment &bam,  const RefVector &refs,
+              bool useEditDistance, const string &bamTag,
               bool obeySplits, bool splitOnDeletions,
-              bool useCigar, bool useNovoalign, 
-              bool useBWA) 
+              bool useCigar, bool useNovoalign,
+              bool useBWA)
 {
     // set the strand
-    string strand = "+";
-    if (bam.IsReverseStrand() == true) strand = "-";
+    string strand = STRAND_FORWARD;
+    if (bam.IsReverseStrand() == true) strand = STRAND_REVERSE;
 
     // set the name of the feature based on the sequence
     string name = bam.Name;
-    if (bam.IsFirstMate() == true)  name += "/1";
-    if (bam.IsSecondMate() == true) name += "/2";
+    if (bam.IsFirstMate() == true)  name += MATE_ONE_SUFFIX;
+    if (bam.IsSecondMate() == true) name += MATE_TWO_SUFFIX;
 
     // get the unpadded (parm = false) end position based on the CIGAR
     unsigned int alignmentEnd = bam.GetEndPosition(false, false);
@@ -448,14 +485,14 @@ void PrintBed(const BamAlignment &bam,  const RefVector &refs,
 
             if (!bam.GetTag("ZN", numMappings)) {
                 // if ZN is missing, this means just one alignment was found.
-                numMappings = 1;
+                numMappings = SINGLE_MAPPING;
             }
             cout << refs.at(bam.RefID).RefName << "\t"
                  << bam.Position << "\t"
                  << alignmentEnd << "\t"
                  << name << "\t"
                  << bam.MapQuality << "\t"
-                 << PrintTag(bam, "NM") << "\t"
+                 << PrintTag(bam, EDIT_DISTANCE_TAG) << "\t"
                  << numMappings << "\t"
                  << strand
                  << endl;
@@ -468,7 +505,7 @@ void PrintBed(const BamAlignment &bam,  const RefVector &refs,
 
             if (!bam.GetTag("X0", x0) && !bam.GetTag("X1", x1)) {
                 // if ZN is missing, this means just one alignment was found.
-                numMappings = 1;
+                numMappings = SINGLE_MAPPING;
             }
             else {
                 numMappings = x0 + x1;
@@ -478,7 +515,7 @@ void PrintBed(const BamAlignment &bam,  const RefVector &refs,
                  << alignmentEnd << "\t"
                  << name << "\t"
                  << bam.MapQuality << "\t"
-                 << PrintTag(bam, "NM") << "\t"
+                 << PrintTag(bam, EDIT_DISTANCE_TAG) << "\t"
                  << numMappings << "\t"
                  << strand
                  << endl;
@@ -526,20 +563,23 @@ void PrintBed(const BamAlignment &bam,  const RefVector &refs,
 }
 
 
-void PrintBed12(const BamAlignment &bam, const RefVector &refs, 
-                bool useEditDistance, const string &bamTag, 
+// Emit a single BAM alignment in blocked BED12 format: the CIGAR is parsed
+// into aligned blocks which become the blockCount/blockSizes/blockStarts
+// columns, with the requested itemRgb colour.
+void PrintBed12(const BamAlignment &bam, const RefVector &refs,
+                bool useEditDistance, const string &bamTag,
                 bool obeySplits, bool splitOnDeletions,
-                string color) 
+                string color)
 {
 
     // set the strand
-    string strand = "+";
-    if (bam.IsReverseStrand()) strand = "-";
+    string strand = STRAND_FORWARD;
+    if (bam.IsReverseStrand()) strand = STRAND_REVERSE;
 
     // set the name of the feature based on the sequence
     string name = bam.Name;
-    if (bam.IsFirstMate()) name += "/1";
-    if (bam.IsSecondMate()) name += "/2";
+    if (bam.IsFirstMate()) name += MATE_ONE_SUFFIX;
+    if (bam.IsSecondMate()) name += MATE_TWO_SUFFIX;
 
     // parse the CIGAR string and figure out the alignment blocks
     vector<BED> bedBlocks;
@@ -588,7 +628,10 @@ void PrintBed12(const BamAlignment &bam, const RefVector &refs,
 }
 
 
-void PrintBedPE(const BamAlignment &bam1, const BamAlignment &bam2, 
+// Emit a mate pair in 10-column BEDPE format. The two ends are ordered either
+// by coordinate (default) or so mate 1 is always first (-mate1), and the score
+// is either the minimum mapping quality or the summed edit distance (-ed).
+void PrintBedPE(const BamAlignment &bam1, const BamAlignment &bam2,
                 const RefVector &refs, bool useEditDistance, bool mate1First) {
 
     // initialize BEDPE variables
@@ -605,13 +648,13 @@ void PrintBedPE(const BamAlignment &bam1, const BamAlignment &bam2,
         chrom1 = refs.at(bam1.RefID).RefName;
         start1 = bam1.Position;
         end1   = bam1.GetEndPosition(false);
-        strand1 = "+";
-        if (bam1.IsReverseStrand()) strand1 = "-";
+        strand1 = STRAND_FORWARD;
+        if (bam1.IsReverseStrand()) strand1 = STRAND_REVERSE;
 
         // extract the edit distance from the NM tag
         // if possible. otherwise, complain.
         if (useEditDistance == true && 
-            bam1.GetTag("NM", editDistance1) == false) 
+            bam1.GetTag(EDIT_DISTANCE_TAG, editDistance1) == false)
         {
             cerr << "The edit distance tag (NM) was not found in the BAM file.  Please disable -ed.  Exiting\n";
             exit(1);
@@ -623,13 +666,13 @@ void PrintBedPE(const BamAlignment &bam1, const BamAlignment &bam2,
         chrom2 = refs.at(bam2.RefID).RefName;
         start2 = bam2.Position;
         end2   = bam2.GetEndPosition(false);
-        strand2 = "+";
-        if (bam2.IsReverseStrand()) strand2 = "-";
+        strand2 = STRAND_FORWARD;
+        if (bam2.IsReverseStrand()) strand2 = STRAND_REVERSE;
 
         // extract the edit distance from the NM tag
         // if possible. otherwise, complain.
         if (useEditDistance == true && 
-            bam2.GetTag("NM", editDistance2) == false) 
+            bam2.GetTag(EDIT_DISTANCE_TAG, editDistance2) == false) 
         {
             cerr << "The edit distance tag (NM) was not found in the BAM file.  Please disable -ed.  Exiting\n";
             exit(1);

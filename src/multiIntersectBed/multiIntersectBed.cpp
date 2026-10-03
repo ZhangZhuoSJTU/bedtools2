@@ -20,6 +20,7 @@
 #include "multiIntersectBed.h"
 
 using namespace std;
+using namespace MultiIntersectBedConstants;
 
 
 MultiIntersectBed::MultiIntersectBed(std::ostream& _output,
@@ -58,6 +59,9 @@ MultiIntersectBed::~MultiIntersectBed() {
 }
 
 
+// Push the START and END sweep-line points of file "index"'s current
+// interval into the queue (only while it belongs to the current chromosome),
+// then advance that file to its next interval.
 void MultiIntersectBed::AddInterval(int index) {
     assert(static_cast<unsigned int>(index) < input_files.size());
 
@@ -81,29 +85,34 @@ void MultiIntersectBed::AddInterval(int index) {
 }
 
 
+// Print the header line: the fixed chrom/start/end/num/list prefix, then one
+// column per input file (its title if titles were supplied, else its name).
 void MultiIntersectBed::PrintHeader() {
-    output << "chrom\tstart\tend\tnum\tlist";
+    output << HEADER_PREFIX;
     if (titles.size() > 0) {
         for (size_t i = 0; i < titles.size(); ++i)
-            output << "\t" << titles[i];
+            output << FIELD_SEPARATOR << titles[i];
     }
     else {
         for (size_t i = 0;i < filenames.size(); ++i)
-            output << "\t" << filenames[i];
+            output << FIELD_SEPARATOR << filenames[i];
     }
     output << endl;
 }
 
 
+// Emit one row for the segment [start, end): chrom/start/end, the number of
+// overlapping inputs, a comma-separated list of which inputs overlap, and a
+// 0/1 flag per input. Nothing is printed for empty segments unless requested.
 void MultiIntersectBed::PrintCoverage(CHRPOS start, CHRPOS end) {
     if ( current_non_zero_inputs == 0 && ! print_empty_regions )
         return ;
 
-    output << current_chrom << "\t"
-        << start << "\t"
-        << end   << "\t"
-        << current_non_zero_inputs << "\t";
-    
+    output << current_chrom << FIELD_SEPARATOR
+        << start << FIELD_SEPARATOR
+        << end   << FIELD_SEPARATOR
+        << current_non_zero_inputs << FIELD_SEPARATOR;
+
     ostringstream file_list_string;
     ostringstream file_bool_string;
     int depth_count = 0;
@@ -124,25 +133,27 @@ void MultiIntersectBed::PrintCoverage(CHRPOS start, CHRPOS end) {
             }
             depth_count++;
         }
-        file_bool_string << "\t" << current_depth[i];
+        file_bool_string << FIELD_SEPARATOR << current_depth[i];
     }
     if (current_non_zero_inputs > 0) {
         cout << file_list_string.str() << file_bool_string.str() << endl;
     }
     else {
-        cout << "none" << file_bool_string.str() << endl;
+        cout << NONE_LABEL << file_bool_string.str() << endl;
     }
 }
 
 
+// Emit one row for a segment that no input file covers: a count of zero, the
+// "none" placeholder, and a zero flag for every input file.
 void MultiIntersectBed::PrintEmptyCoverage(CHRPOS start, CHRPOS end) {
-    output << current_chrom << "\t"
-        << start << "\t"
-        << end   << "\t"
-        << "0"   << "\t" << "none";
+    output << current_chrom << FIELD_SEPARATOR
+        << start << FIELD_SEPARATOR
+        << end   << FIELD_SEPARATOR
+        << "0"   << FIELD_SEPARATOR << NONE_LABEL;
 
     for (size_t i=0;i<current_depth.size();++i)
-        output << "\t0";
+        output << FIELD_SEPARATOR << "0";
 
     output << endl;
 }
@@ -208,6 +219,8 @@ void MultiIntersectBed::CloseFiles() {
 }
 
 
+// Main driver: for each chromosome, sweep the merged intervals of every file
+// and report the overlap status of each segment between consecutive points.
 void MultiIntersectBed::MultiIntersect() {
     OpenFiles();
 
@@ -236,13 +249,13 @@ void MultiIntersectBed::MultiIntersect() {
             }
             // update depending on the type of interval we encountered.
             if (curr_point.coord_type == START) {
-                current_depth[curr_point.source_index] = 1;
+                current_depth[curr_point.source_index] = COVERAGE_PRESENT;
                 current_non_zero_inputs++;
             }
             else {
                 //Read the next interval from this file
                 AddInterval(curr_point.source_index);
-                current_depth[curr_point.source_index] = 0;
+                current_depth[curr_point.source_index] = COVERAGE_ABSENT;
                 current_non_zero_inputs--;
             }
             // reset for the next point
@@ -260,6 +273,8 @@ void MultiIntersectBed::MultiIntersect() {
 }
 
 
+// Variant of the sweep that reports only the clustered (covered) segments:
+// coverage is emitted when an END is reached after at least one START.
 void MultiIntersectBed::Cluster() {
     OpenFiles();
 
@@ -284,7 +299,7 @@ void MultiIntersectBed::Cluster() {
             // get the current point in the queue
             curr_point = queue.top();
             if (curr_point.coord_type == START) {
-                current_depth[curr_point.source_index] = 1;
+                current_depth[curr_point.source_index] = COVERAGE_PRESENT;
                 current_non_zero_inputs++;
                 // reset for the next point
                 prev_start = curr_point.coord;
@@ -296,7 +311,7 @@ void MultiIntersectBed::Cluster() {
                 }
                 //Read the next interval from this file
                 AddInterval(curr_point.source_index);
-                current_depth[curr_point.source_index] = 0;
+                current_depth[curr_point.source_index] = COVERAGE_ABSENT;
                 current_non_zero_inputs--;
                 last_direction = -1;
             }

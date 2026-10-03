@@ -33,6 +33,9 @@ void BamFileReader::close()
 
 bool BamFileReader::readEntry()
 {
+	// Pull the next alignment from the BAM stream. The "core" variant skips
+	// decoding optional tag data, which callers that don't need tags select
+	// via _useTags for speed.
 	if (_useTags) {
 		if (_bamReader->GetNextAlignment(_bamAlignment)) {
 			return true;

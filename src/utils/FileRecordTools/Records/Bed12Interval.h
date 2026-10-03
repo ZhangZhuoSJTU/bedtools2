@@ -53,6 +53,17 @@ public:
 	virtual const string &getField(int fieldNum) const;
 	virtual int getNumFields() const  { return 12; }
 	static bool isNumericField(int fieldNum);
+
+	// 1-based column positions for the BED12-specific block columns,
+	// addressed by the generic field accessors.
+	enum {
+		THICK_START_COLUMN  = 7,
+		THICK_END_COLUMN    = 8,
+		ITEM_RGB_COLUMN     = 9,
+		BLOCK_COUNT_COLUMN  = 10,
+		BLOCK_SIZES_COLUMN  = 11,
+		BLOCK_STARTS_COLUMN = 12
+	};
 	CHRPOS getLength(bool obeySplits) const;
 
 

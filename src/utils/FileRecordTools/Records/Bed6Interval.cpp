@@ -14,8 +14,11 @@ Bed6Interval::~Bed6Interval()
 
 bool Bed6Interval::initFromFile(SingleLineDelimTextFileReader *fileReader)
 {
+	// A BED6 record is a BED3 record plus the name, score and strand
+	// columns, so defer the first three fields to the base class.
 	bool baseRetFlag = Bed3Interval::initFromFile(fileReader);
 
+	// Columns 3-5 (0-based) carry name, score and strand respectively.
 	fileReader->getField(3, _name);
 	fileReader->getField(4, _score);
 	fileReader->getField(5, _strand);
@@ -59,13 +62,13 @@ void Bed6Interval::printNull(string &outBuf) const
 const string &Bed6Interval::getField(int fieldNum) const
 {
 	switch (fieldNum) {
-	case 4:
+	case NAME_COLUMN:
 		return _name;
 		break;
-	case 5:
+	case SCORE_COLUMN:
 		return _score;
 		break;
-	case 6:
+	case STRAND_COLUMN:
 		return _strand;
 		break;
 	default:
@@ -76,13 +79,16 @@ const string &Bed6Interval::getField(int fieldNum) const
 
 bool Bed6Interval::isNumericField(int fieldNum) {
 	switch (fieldNum) {
-	case 4:
+	case NAME_COLUMN:
+		// The feature name is free text.
 		return false;
 		break;
-	case 5:
+	case SCORE_COLUMN:
+		// The score column is numeric.
 		return true;
 		break;
-	case 6:
+	case STRAND_COLUMN:
+		// Strand is one of '+', '-', '.'.
 		return false;
 		break;
 	default:

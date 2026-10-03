@@ -21,6 +21,8 @@ Record::~Record()
 
 const Record &Record::operator=(const Record &other)
 {
+	// Copy only the shared positional/identity fields held by the base
+	// Record; derived records chain to this and copy their own columns.
 	_fileIdx = other._fileIdx;
 	_chrName = other._chrName;
 	_chrId = other._chrId;

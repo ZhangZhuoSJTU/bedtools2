@@ -99,12 +99,15 @@ bool BufferedStreamMgr::getLine(string &line)
 {
 	line.clear();
 
+	// Refill the buffer if the previous call consumed it entirely.
 	if (_mainBufCurrStartPos >= _mainBufCurrLen) {
 		if (!readFileChunk()) {
 			_eof = true;
 			return false;
 		}
 	}
+	// Accumulate bytes until we hit a newline or run out of input, pulling
+	// fresh chunks as needed so a line may span several buffer refills.
 	bool retVal = true;
 	while (1) {
 		int searchPos = _mainBufCurrLen;

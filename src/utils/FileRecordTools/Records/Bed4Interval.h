@@ -30,6 +30,9 @@ public:
 	virtual int getNumFields() const  { return 4; }
 	static bool isNumericField(int fieldNum);
 
+	// 1-based column position of the name field for the generic accessors.
+	enum { NAME_COLUMN = 4 };
+
 
 protected:
 	virtual ~Bed4Interval();

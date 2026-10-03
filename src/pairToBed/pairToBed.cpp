@@ -12,7 +12,11 @@
 #include "lineFileUtilities.h"
 #include "pairToBed.h"
 
+using namespace PairToBedConstants;
 
+
+// Legacy helper: decide whether a single BAM alignment is the canonical
+// record to represent its pair (avoids double-reporting a mate pair).
 bool IsCorrectMappingForBEDPE (const BamAlignment &bam) {
 
     if ( (bam.RefID == bam.MateRefID) && (bam.InsertSize > 0) ) {
@@ -67,6 +71,9 @@ BedIntersectPE::~BedIntersectPE(void) {
 
 
 
+// Full (reporting) overlap search for a single BEDPE feature "a".
+// Collects the hits that pass the overlap-fraction test on each end and then
+// prints the appropriate records according to the -type reporting mode.
 void BedIntersectPE::FindOverlaps(const BEDPE &a, vector<BED> &hits1, vector<BED> &hits2, const string &type) {
 
     // list of hits on each end of BEDPE
@@ -80,25 +87,25 @@ void BedIntersectPE::FindOverlaps(const BEDPE &a, vector<BED> &hits1, vector<BED
     int numOverlapsEnd2 = 0;
 
     // make sure we have a valid chromosome before we search
-    if (a.chrom1 != ".") {
+    if (a.chrom1 != UNMAPPED_CHROM) {
         // Find the quality hits between ***end1*** of the BEDPE and the B BED file
-        _bedB->allHits(a.chrom1, a.start1, a.end1, a.strand1, 
-                       hits1, _sameStrand, _diffStrand, 0.0, false);
+        _bedB->allHits(a.chrom1, a.start1, a.end1, a.strand1,
+                       hits1, _sameStrand, _diffStrand, ANY_OVERLAP_FRACTION, false);
 
         vector<BED>::const_iterator h = hits1.begin();
         vector<BED>::const_iterator hitsEnd = hits1.end();
         for (; h != hitsEnd; ++h) {
 
-            int s = max(a.start1, h->start);
-            int e = min(a.end1, h->end);
-            int overlapBases = (e - s);             // the number of overlapping bases b/w a and b
-            int aLength = (a.end1 - a.start1);      // the length of a in b.p.
+            const int s = max(a.start1, h->start);
+            const int e = min(a.end1, h->end);
+            const int overlapBases = (e - s);        // the number of overlapping bases b/w a and b
+            const int aLength = (a.end1 - a.start1); // the length of a in b.p.
 
             // is there enough overlap relative to the user's request? (default ~ 1bp)
             if ( ( (float) overlapBases / (float) aLength ) >= _overlapFraction ) {
                 numOverlapsEnd1++;
 
-                if (type == "either") {
+                if (type == TYPE_EITHER) {
                     _bedA->reportBedPETab(a);
                     _bedB->reportBedNewLine(*h);
                 }
@@ -111,25 +118,25 @@ void BedIntersectPE::FindOverlaps(const BEDPE &a, vector<BED> &hits1, vector<BED
 
 
     // make sure we have a valid chromosome before we search
-    if (a.chrom2 != ".") {
+    if (a.chrom2 != UNMAPPED_CHROM) {
         // Now find the quality hits between ***end2*** of the BEDPE and the B BED file
-        _bedB->allHits(a.chrom2, a.start2, a.end2, a.strand2, 
-                       hits2, _sameStrand, _diffStrand, 0.0, false);
+        _bedB->allHits(a.chrom2, a.start2, a.end2, a.strand2,
+                       hits2, _sameStrand, _diffStrand, ANY_OVERLAP_FRACTION, false);
 
         vector<BED>::const_iterator h = hits2.begin();
         vector<BED>::const_iterator hitsEnd = hits2.end();
         for (; h != hitsEnd; ++h) {
 
-            int s = max(a.start2, h->start);
-            int e = min(a.end2, h->end);
-            int overlapBases = (e - s);             // the number of overlapping bases b/w a and b
-            int aLength = (a.end2 - a.start2);      // the length of a in b.p.
+            const int s = max(a.start2, h->start);
+            const int e = min(a.end2, h->end);
+            const int overlapBases = (e - s);        // the number of overlapping bases b/w a and b
+            const int aLength = (a.end2 - a.start2); // the length of a in b.p.
 
             // is there enough overlap relative to the user's request? (default ~ 1bp)
             if ( ( (float) overlapBases / (float) aLength ) >= _overlapFraction ) {
                 numOverlapsEnd2++;
 
-                if (type == "either") {
+                if (type == TYPE_EITHER) {
                     _bedA->reportBedPETab(a);
                     _bedB->reportBedNewLine(*h);
                 }
@@ -141,12 +148,12 @@ void BedIntersectPE::FindOverlaps(const BEDPE &a, vector<BED> &hits1, vector<BED
     }
 
     // Now report the hits depending on what the user has requested.
-    if (type == "neither") {
+    if (type == TYPE_NEITHER) {
         if ( (numOverlapsEnd1 == 0) && (numOverlapsEnd2 == 0) ) {
             _bedA->reportBedPENewLine(a);
         }
     }
-    else if (type == "notboth") {
+    else if (type == TYPE_NOTBOTH) {
         if ( (numOverlapsEnd1 == 0) && (numOverlapsEnd2 == 0) ) {
             _bedA->reportBedPENewLine(a);
         }
@@ -163,7 +170,7 @@ void BedIntersectPE::FindOverlaps(const BEDPE &a, vector<BED> &hits1, vector<BED
             }
         }
     }
-    else if (type == "xor") {
+    else if (type == TYPE_XOR) {
         if ( (numOverlapsEnd1 > 0) && (numOverlapsEnd2 == 0) ) {
             for (vector<BED>::iterator q = qualityHits1.begin(); q != qualityHits1.end(); ++q) {
                 _bedA->reportBedPETab(a);
@@ -177,7 +184,7 @@ void BedIntersectPE::FindOverlaps(const BEDPE &a, vector<BED> &hits1, vector<BED
             }
         }
     }
-    else if (type == "both") {
+    else if (type == TYPE_BOTH) {
         if ( (numOverlapsEnd1 > 0) && (numOverlapsEnd2 > 0) ) {
             for (vector<BED>::iterator q1 = qualityHits1.begin(); q1 != qualityHits1.end(); ++q1) {
                 _bedA->reportBedPETab(a);
@@ -192,6 +199,9 @@ void BedIntersectPE::FindOverlaps(const BEDPE &a, vector<BED> &hits1, vector<BED
 }
 
 
+// Boolean (short-circuiting) counterpart of FindOverlaps used for BAM output:
+// returns whether feature "a" satisfies the requested -type reporting mode,
+// bailing out as early as the logic allows.
 bool BedIntersectPE::FindOneOrMoreOverlaps(const BEDPE &a, const string &type) {
 
     // flags for the existence of hits on each end of BEDPE
@@ -200,46 +210,46 @@ bool BedIntersectPE::FindOneOrMoreOverlaps(const BEDPE &a, const string &type) {
     bool end2Found = false;
 
     // Look for overlaps in end 1 assuming we have an aligned chromosome.
-    if (a.chrom1 != ".") {
+    if (a.chrom1 != UNMAPPED_CHROM) {
         end1Found = _bedB->anyHits(a.chrom1, a.start1, a.end1, a.strand1,
                                    _sameStrand, _diffStrand, _overlapFraction, false);
 
         // can we bail out without checking end2?
-        if ((type == "either") && (end1Found == true)) return true;
-        else if ((type == "neither") && (end1Found == true)) return false;
-        else if ((type == "notboth") && (end1Found == false)) return true;
-        else if ((type == "both") && (end1Found == false)) return false;
+        if ((type == TYPE_EITHER) && (end1Found == true)) return true;
+        else if ((type == TYPE_NEITHER) && (end1Found == true)) return false;
+        else if ((type == TYPE_NOTBOTH) && (end1Found == false)) return true;
+        else if ((type == TYPE_BOTH) && (end1Found == false)) return false;
     }
 
     // Now look for overlaps in end 2 assuming we have an aligned chromosome.
-    if (a.chrom2 != ".") {
+    if (a.chrom2 != UNMAPPED_CHROM) {
         end2Found = _bedB->anyHits(a.chrom2, a.start2, a.end2, a.strand2,
                                    _sameStrand, _diffStrand, _overlapFraction, false);
 
-        if ((type == "either") && (end2Found == true)) return true;
-        else if ((type == "neither") && (end2Found == true)) return false;
-        else if ((type == "notboth") && (end2Found == false)) return true;
-        else if ((type == "both") && (end2Found == false)) return false;
+        if ((type == TYPE_EITHER) && (end2Found == true)) return true;
+        else if ((type == TYPE_NEITHER) && (end2Found == true)) return false;
+        else if ((type == TYPE_NOTBOTH) && (end2Found == false)) return true;
+        else if ((type == TYPE_BOTH) && (end2Found == false)) return false;
     }
 
     // Now report the hits depending on what the user has requested.
-    if (type == "notboth") {
+    if (type == TYPE_NOTBOTH) {
         if ( (end1Found == false) || (end2Found == false) ) return true;
         else return false;
     }
-    else if (type == "either") {
+    else if (type == TYPE_EITHER) {
         if ( (end1Found == false) && (end2Found == false) ) return false;
     }
-    else if (type == "neither") {
+    else if (type == TYPE_NEITHER) {
         if ( (end1Found == false) && (end2Found == false) ) return true;
         else return false;
     }
-    else if (type == "xor") {
+    else if (type == TYPE_XOR) {
         if ( (end1Found == true) && (end2Found == false) ) return true;
         else if ( (end1Found == false) && (end2Found == true) ) return true;
         else return false;
     }
-    else if (type == "both") {
+    else if (type == TYPE_BOTH) {
         if ( (end1Found == true) && (end2Found == true) ) return true;
         return false;
     }
@@ -247,6 +257,9 @@ bool BedIntersectPE::FindOneOrMoreOverlaps(const BEDPE &a, const string &type) {
 }
 
 
+// Reporting search for the inner/outer "span" modes: build the span interval
+// between the two ends of the pair and report B features overlapping it
+// (ispan/ospan), or report A when nothing overlaps (notispan/notospan).
 void BedIntersectPE::FindSpanningOverlaps(const BEDPE &a, vector<BED> &hits, const string &type) {
 
     // count of hits on _between_ end of BEDPE
@@ -256,7 +269,7 @@ void BedIntersectPE::FindSpanningOverlaps(const BEDPE &a, vector<BED> &hits, con
     CHRPOS spanEnd = 0;
     CHRPOS spanLength = 0;
 
-    if ((type == "ispan") || (type == "notispan")) {
+    if ((type == TYPE_ISPAN) || (type == TYPE_NOTISPAN)) {
         spanStart = a.end1;
         spanEnd = a.start2;
         if (a.end1 > a.start2) {
@@ -264,7 +277,7 @@ void BedIntersectPE::FindSpanningOverlaps(const BEDPE &a, vector<BED> &hits, con
             spanEnd = a.start1;
         }
     }
-    else if ((type == "ospan") || (type == "notospan")) {
+    else if ((type == TYPE_OSPAN) || (type == TYPE_NOTOSPAN)) {
         spanStart = a.start1;
         spanEnd = a.end2;
         if (a.start1 > a.start2) {
@@ -275,8 +288,8 @@ void BedIntersectPE::FindSpanningOverlaps(const BEDPE &a, vector<BED> &hits, con
     spanLength = spanEnd - spanStart;
 
     // get the hits for the span
-    _bedB->allHits(a.chrom1, spanStart, spanEnd, a.strand1, 
-                   hits, _sameStrand, _diffStrand, 0.0, false);
+    _bedB->allHits(a.chrom1, spanStart, spanEnd, a.strand1,
+                   hits, _sameStrand, _diffStrand, ANY_OVERLAP_FRACTION, false);
 
     vector<BED>::const_iterator h = hits.begin();
     vector<BED>::const_iterator hitsEnd = hits.end();
@@ -290,19 +303,21 @@ void BedIntersectPE::FindSpanningOverlaps(const BEDPE &a, vector<BED> &hits, con
         // is there enough overlap relative to the user's request? (default ~ 1bp)
         if ( ( (float) overlapBases / (float) spanLength ) >= _overlapFraction ) {
             numOverlaps++;
-            if ((type == "ispan") || (type == "ospan")) {
+            if ((type == TYPE_ISPAN) || (type == TYPE_OSPAN)) {
                 _bedA->reportBedPETab(a);
                 _bedB->reportBedNewLine(*h);
             }
         }
     }
 
-    if ( ( (type == "notispan") || (type == "notospan") ) && numOverlaps == 0 ) {
+    if ( ( (type == TYPE_NOTISPAN) || (type == TYPE_NOTOSPAN) ) && numOverlaps == 0 ) {
         _bedA->reportBedPENewLine(a);
     }
 }
 
 
+// Boolean counterpart of FindSpanningOverlaps used for BAM output: returns
+// whether any B feature overlaps the span of the pair.
 bool BedIntersectPE::FindOneOrMoreSpanningOverlaps(const BEDPE &a, const string &type) {
 
     CHRPOS spanStart = 0;
@@ -310,7 +325,7 @@ bool BedIntersectPE::FindOneOrMoreSpanningOverlaps(const BEDPE &a, const string 
     CHRPOS spanLength = 0;
     bool overlapFound;
 
-    if ((type == "ispan") || (type == "notispan")) {
+    if ((type == TYPE_ISPAN) || (type == TYPE_NOTISPAN)) {
         spanStart = a.end1;
         spanEnd = a.start2;
         if (a.end1 > a.start2) {
@@ -318,7 +333,7 @@ bool BedIntersectPE::FindOneOrMoreSpanningOverlaps(const BEDPE &a, const string 
             spanEnd = a.start1;
         }
     }
-    else if ((type == "ospan") || (type == "notospan")) {
+    else if ((type == TYPE_OSPAN) || (type == TYPE_NOTOSPAN)) {
         spanStart = a.start1;
         spanEnd = a.end2;
         if (a.start1 > a.start2) {
@@ -335,6 +350,8 @@ bool BedIntersectPE::FindOneOrMoreSpanningOverlaps(const BEDPE &a, const string 
 }
 
 
+// Stream the plain-text BEDPE "A" file and intersect each valid pair against
+// the pre-loaded "B" map, choosing the span or per-end search as appropriate.
 void BedIntersectPE::IntersectBedPE() {
 
     // load the "B" bed file into a map so
@@ -345,9 +362,9 @@ void BedIntersectPE::IntersectBedPE() {
     vector<BED> hits, hits1, hits2;     // vector of potential hits
 
     // reserve some space
-    hits.reserve(100);
-    hits1.reserve(100);
-    hits2.reserve(100);
+    hits.reserve(HITS_RESERVE_BED);
+    hits1.reserve(HITS_RESERVE_BED);
+    hits2.reserve(HITS_RESERVE_BED);
 
     BEDPE a, nullBedPE;
     BedLineStatus bedStatus;
@@ -355,8 +372,8 @@ void BedIntersectPE::IntersectBedPE() {
     _bedA->Open();
     while ((bedStatus = _bedA->GetNextBedPE(a, lineNum)) != BED_INVALID) {
         if (bedStatus == BED_VALID) {
-            if ( (_searchType == "ispan") || (_searchType == "ospan") ||
-                 (_searchType == "notispan") || (_searchType == "notospan") ) {
+            if ( (_searchType == TYPE_ISPAN) || (_searchType == TYPE_OSPAN) ||
+                 (_searchType == TYPE_NOTISPAN) || (_searchType == TYPE_NOTOSPAN) ) {
                 if (a.chrom1 == a.chrom2) {
                     FindSpanningOverlaps(a, hits, _searchType);
                     hits.clear();
@@ -374,6 +391,8 @@ void BedIntersectPE::IntersectBedPE() {
 }
 
 
+// Stream a query-sorted BAM "A" file, pairing consecutive mate alignments and
+// processing each pair as a BEDPE record (see ProcessBamBlock).
 void BedIntersectPE::IntersectBamPE(string bamFile) {
 
     // load the "B" bed file into a map so
@@ -385,7 +404,7 @@ void BedIntersectPE::IntersectBamPE(string bamFile) {
     BamWriter writer;
     if (!reader.Open(bamFile)) {
         cerr << "Failed to open BAM file " << bamFile << endl;
-        exit(1);
+        exit(EXIT_FAILURE_STATUS);
     }
 
     // get header & reference information
@@ -409,9 +428,9 @@ void BedIntersectPE::IntersectBamPE(string bamFile) {
     prevName = currName = "";
 
     vector<BamAlignment> alignments;        // vector of BAM alignments for a given ID in a BAM file.
-    alignments.reserve(100);
+    alignments.reserve(HITS_RESERVE_BED);
 
-    _bedA->bedType = 10;                    // it's a full BEDPE given it's BAM
+    _bedA->bedType = BEDPE_FIELD_COUNT;     // it's a full BEDPE given it's BAM
 
     // rip through the BAM file and convert each mapped entry to BEDPE
     BamAlignment bam1, bam2;
@@ -442,19 +461,22 @@ void BedIntersectPE::IntersectBamPE(string bamFile) {
 }
 
 
+// Process one mate pair from the BAM file: convert it to a BEDPE record and
+// run the per-end or span search matching the user's -type, emitting BAM or
+// BEDPE output as configured.
 void BedIntersectPE::ProcessBamBlock (const BamAlignment &bam1, const BamAlignment &bam2,
                                       const RefVector &refs, BamWriter &writer) {
 
     vector<BED> hits, hits1, hits2;         // vector of potential hits
-    hits.reserve(1000);                     // reserve some space
-    hits1.reserve(1000);
-    hits2.reserve(1000);
+    hits.reserve(HITS_RESERVE_BAM);         // reserve some space
+    hits1.reserve(HITS_RESERVE_BAM);
+    hits2.reserve(HITS_RESERVE_BAM);
 
     bool overlapsFound;                     // flag to indicate if overlaps were found
 
-    if ( (_searchType == "either") || (_searchType == "xor") ||
-              (_searchType == "both") || (_searchType == "notboth") ||
-              (_searchType == "neither") ) {
+    if ( (_searchType == TYPE_EITHER) || (_searchType == TYPE_XOR) ||
+              (_searchType == TYPE_BOTH) || (_searchType == TYPE_NOTBOTH) ||
+              (_searchType == TYPE_NEITHER) ) {
 
         // create a new BEDPE feature from the BAM alignments.
         BEDPE a;
@@ -473,7 +495,7 @@ void BedIntersectPE::ProcessBamBlock (const BamAlignment &bam1, const BamAlignme
             hits2.clear();
         }
     }
-    else if ( (_searchType == "ispan") || (_searchType == "ospan") ) {
+    else if ( (_searchType == TYPE_ISPAN) || (_searchType == TYPE_OSPAN) ) {
         // only look for ispan and ospan when both ends are mapped.
         if (bam1.IsMapped() && bam2.IsMapped()) {
             // only do an inspan or outspan check if the alignment is intrachromosomal
@@ -496,7 +518,7 @@ void BedIntersectPE::ProcessBamBlock (const BamAlignment &bam1, const BamAlignme
             }
         }
     }
-    else if ( (_searchType == "notispan") || (_searchType == "notospan") ) {
+    else if ( (_searchType == TYPE_NOTISPAN) || (_searchType == TYPE_NOTOSPAN) ) {
         // only look for notispan and notospan when both ends are mapped.
         if (bam1.IsMapped() && bam2.IsMapped()) {
             // only do an inspan or outspan check if the alignment is intrachromosomal

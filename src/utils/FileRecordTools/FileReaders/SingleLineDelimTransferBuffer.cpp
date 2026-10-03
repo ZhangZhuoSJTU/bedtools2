@@ -33,6 +33,8 @@ bool SingleLineDelimTransferBuffer::initFromInput(const char *inBuffer)
 	if (strlen(inBuffer) == 0) {
 		return false;
 	}
+	// Walk the buffer with a pair of cursors, carving out one field at a
+	// time between delimiters until the line (or buffer) ends.
 	const char *oldCursor = (const char *)inBuffer;
 	const char *newCursor = (const char *)inBuffer;
 	int fieldNum = 0;

@@ -19,6 +19,27 @@
 #include "GenomeFile.h"
 #include "Point.h"
 
+//************************************************
+// Named constants (replace hard-coded literals).
+//************************************************
+namespace UnionBedGraphsConstants {
+    // Column separator used throughout the tab-delimited output.
+    const char * const FIELD_SEPARATOR = "\t";
+
+    // Fixed prefix of the optional header line (the per-file titles follow).
+    const char * const HEADER_PREFIX = "chrom\tstart\tend";
+
+    // The left-most coordinate of any chromosome (bedGraph is 0-based).
+    const CHRPOS CHROM_ORIGIN = 0;
+}
+
+//
+// UnionBedGraphs implements "bedtools unionbedg": it merges several
+// bedGraph files into a single matrix, emitting, for every contiguous
+// genomic segment, the coverage/value reported by each input file.
+// A sweep-line priority queue of interval START/END points drives the
+// per-coordinate updates.
+//
 class UnionBedGraphs
 {
 private:

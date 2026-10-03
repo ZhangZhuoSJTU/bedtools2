@@ -20,6 +20,30 @@
 #include "GenomeFile.h"
 #include "Point.h"
 
+//************************************************
+// Named constants (replace hard-coded literals).
+//************************************************
+namespace MultiIntersectBedConstants {
+    // Column separator used throughout the tab-delimited output.
+    const char * const FIELD_SEPARATOR = "\t";
+
+    // Fixed prefix of the header line (per-file names/titles follow).
+    const char * const HEADER_PREFIX = "chrom\tstart\tend\tnum\tlist";
+
+    // Placeholder printed in the "list" column when no file covers a segment.
+    const char * const NONE_LABEL = "none";
+
+    // Per-file coverage flag values (a file either covers a segment or not).
+    const int COVERAGE_PRESENT = 1;
+    const int COVERAGE_ABSENT  = 0;
+}
+
+//
+// MultiIntersectBed implements "bedtools multiinter": given several sorted
+// interval files, it reports, for every contiguous segment of the genome,
+// how many and which of the inputs overlap that segment. A sweep line over
+// START/END points of merged intervals produces the segmentation.
+//
 class MultiIntersectBed
 {
 private:

@@ -13,6 +13,11 @@ Licensed under the GNU General Public License 2.0 license.
 #include "fileType.h"
 
 
+// First byte of the two-byte GZIP magic number (0x1f 0x8b). We only peek at
+// this one byte so the istream's failbit is left untouched (see isGzipFile).
+static const int GZIP_MAGIC_FIRST_BYTE = 0x1f;
+
+
 /*
 returns TRUE if the file is a regular file:
 not a pipe/device.
@@ -70,7 +75,7 @@ bool isGzipFile(istream *file) {
         by John Marshall in response to Issue 30:
         https://github.com/arq5x/bedtools/issues/30
  */
-    if (file->peek() == 0x1f)
+    if (file->peek() == GZIP_MAGIC_FIRST_BYTE)
     {
         return true;
     }

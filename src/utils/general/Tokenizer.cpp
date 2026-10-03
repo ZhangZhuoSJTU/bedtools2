@@ -16,12 +16,14 @@ Tokenizer::Tokenizer()
 Tokenizer::~Tokenizer() {
 }
 
+// Hint the expected number of fields so buffers can be sized appropriately.
 void Tokenizer::setNumExpectedItems(int newSize) {
 	_numExpectedElems = newSize;
 }
 
-// tokenize into a list of strings.
-int Tokenizer::getNumFields(const string &str, char delimiter) 
+// Count how many fields str would split into on the given delimiter, without
+// disturbing the tokenizer's stored elements.
+int Tokenizer::getNumFields(const string &str, char delimiter)
 {
     // http://stackoverflow.com/questions/236129/how-to-split-a-string-in-c/236803#236803
     // NOTE: this approach intentionally allows consecutive delimiters
@@ -34,6 +36,9 @@ int Tokenizer::getNumFields(const string &str, char delimiter)
     return tmp.size();
 }
 
+// Split str on the delimiter into the stored element list and return the field
+// count. For compressed input split on newlines, a trailing partial line (one
+// not terminated by '\n') is dropped so only complete lines are sampled.
 int Tokenizer::tokenize(const string &str, char delimiter, bool eofHit, bool isCompressed) {
 
     // http://stackoverflow.com/questions/236129/how-to-split-a-string-in-c/236803#236803
@@ -104,10 +109,12 @@ int Tokenizer::tokenize(const string &str, char delimiter, bool eofHit, bool isC
 	// return currIdx;
 }
 
+// Choose whether a trailing element that ended without a delimiter is kept.
 void Tokenizer::setKeepFinalIncompleteElem(lastElemCode code) {
 	_keepFinalIncElem = code;
 }
 
+// Return the element at the given index (no bounds checking).
 string Tokenizer::fetchElem(int idx)
 {
 	return _elems[idx];

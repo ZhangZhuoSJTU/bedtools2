@@ -24,7 +24,7 @@ ContextSubtract::~ContextSubtract()
 
 bool ContextSubtract::parseCmdArgs(int argc, char **argv, int skipFirstArgs) {
 	for (_i=_skipFirstArgs; _i < argc; _i++) {
-		if (isUsed(_i - _skipFirstArgs)) {
+		if (isCurrentArgUsed()) {
 			continue;
 		}
 		if (strcmp(_argv[_i], "-f") == 0) {
@@ -65,13 +65,13 @@ bool ContextSubtract::isValidState()
 
 bool ContextSubtract::handle_A() {
    _removeAll = true;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
 bool ContextSubtract::handle_N() {
 	_removeSum = true;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
     setHaveFractionA(true);
     return true;
 }

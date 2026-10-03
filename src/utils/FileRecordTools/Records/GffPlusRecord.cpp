@@ -12,6 +12,8 @@ GffPlusRecord::~GffPlusRecord() {
 
 bool GffPlusRecord::initFromFile(SingleLineDelimTextFileReader *fileReader)
 {
+	// Parse the standard GFF columns first; the plus fields are whatever
+	// trailing columns remain past the GFF record's own field count.
 	if (!GffRecord::initFromFile(fileReader)) {
 		return false;
 	}

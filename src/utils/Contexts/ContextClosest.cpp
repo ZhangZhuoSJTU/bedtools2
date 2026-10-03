@@ -33,7 +33,7 @@ ContextClosest::~ContextClosest(){
 bool ContextClosest::parseCmdArgs(int argc, char **argv, int skipFirstArgs){
 
 	for (_i=_skipFirstArgs; _i < argc; _i++) {
-		if (isUsed(_i - _skipFirstArgs)) {
+		if (isCurrentArgUsed()) {
 			continue;
 		}
 		if (strcmp(_argv[_i], "-c") == 0) {
@@ -129,7 +129,7 @@ bool ContextClosest::isValidState(){
 
 bool ContextClosest::handle_d() {
     _reportDistance = true;
-    markUsed(_i - _skipFirstArgs);
+    markCurrentArgUsed();
     return true;
 }
 
@@ -153,9 +153,9 @@ bool ContextClosest::handle_D() {
     	strandError = true;
     }
     if (!strandError) {
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
         _i++;
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
         return true;
     }
     _errorMsg = "*****ERROR: -D option must be followed with \"ref\", \"a\", or \"b\"";
@@ -164,37 +164,37 @@ bool ContextClosest::handle_D() {
 
 bool ContextClosest::handle_io() {
     _ignoreOverlaps = true;
-    markUsed(_i - _skipFirstArgs);
+    markCurrentArgUsed();
     return true;
 }
 
 bool ContextClosest::handle_iu() {
 	_ignoreUpstream = true;
-    markUsed(_i - _skipFirstArgs);
+    markCurrentArgUsed();
     return true;
 }
 
 bool ContextClosest::handle_id() {
 	_ignoreDownstream = true;
-    markUsed(_i - _skipFirstArgs);
+    markCurrentArgUsed();
     return true;
 }
 
 bool ContextClosest::handle_fu() {
 	_forceUpstream = true;
-    markUsed(_i - _skipFirstArgs);
+    markCurrentArgUsed();
     return true;
 }
 
 bool ContextClosest::handle_fd() {
 	_forceDownstream = true;
-    markUsed(_i - _skipFirstArgs);
+    markCurrentArgUsed();
     return true;
 }
 
 bool ContextClosest::handle_N() {
     _diffNames = true;
-    markUsed(_i - _skipFirstArgs);
+    markCurrentArgUsed();
     return true;
 }
 
@@ -217,9 +217,9 @@ bool ContextClosest::handle_t()
     	tieError = true;
     }
     if (!tieError) {
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
         _i++;
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
         return true;
     }
 	_errorMsg = "*****ERROR: Request \"all\", \"first\", \"last\" for Tie Mode (-t)";
@@ -242,9 +242,9 @@ bool ContextClosest::handle_mdb()
     	mdbError = true;
     }
     if (!mdbError) {
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
         _i++;
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
         return true;
     }
 	_errorMsg = "*****ERROR: Request \"each\" or \"last\" for Multiple Database Mode (-mdb)";
@@ -257,9 +257,9 @@ bool ContextClosest::handle_k()
     	if (isNumeric(_argv[_i+1])) {
 			_numClosestHitsWanted = atoi(_argv[_i+1]);
 			if (_numClosestHitsWanted > 0) {
-				markUsed(_i - _skipFirstArgs);
+				markCurrentArgUsed();
 				_i++;
-				markUsed(_i - _skipFirstArgs);
+				markCurrentArgUsed();
 				return true;
 			}
     	}

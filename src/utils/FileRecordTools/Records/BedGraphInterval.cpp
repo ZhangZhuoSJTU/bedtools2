@@ -14,10 +14,12 @@ BedGraphInterval::~BedGraphInterval()
 
 bool BedGraphInterval::initFromFile(SingleLineDelimTextFileReader *fileReader)
 {
-	bool baseRetFlag = Bed3Interval::initFromFile(fileReader);
+	// bedGraph stores its data value in the field after the BED3 core.
+	bool parsedBase = Bed3Interval::initFromFile(fileReader);
 
+	// Column 3 (0-based) carries the bedGraph value, kept here as _name.
 	fileReader->getField(3, _name);
-	return baseRetFlag;
+	return parsedBase;
 }
 
 inline void print_record(const string& chrom_name, CHRPOS start, CHRPOS end, const string& name, string& buf) {

@@ -14,6 +14,9 @@
 
 using namespace std;
 
+// Splits a string into fields on a delimiter, retaining the pieces for indexed
+// access. Consecutive delimiters are preserved as empty fields, and the final
+// element may optionally be kept even when it ends without a delimiter.
 class Tokenizer {
 public:
 	Tokenizer();

@@ -125,6 +125,9 @@ bool ContextBase::errorEncountered() {
 	return !_errorMsg.empty() || getShowHelp();
 }
 
+// Decide whether results should be written as BED or BAM. Explicit -bed wins;
+// otherwise BAM is used when the relevant input file is BAM, and BED in all
+// other cases. The result is cached in _outputTypeDetermined.
 bool ContextBase::determineOutputType() {
 	if (_outputTypeDetermined) {
 		return true;
@@ -163,6 +166,9 @@ void ContextBase::openGenomeFile(const BamTools::RefVector &refVector)
 	_genomeFile = new NewGenomeFile(refVector);
 }
 
+// Record the raw command line, resolve the sub-command from argv[0], size the
+// "argument consumed" tracking vector, then parse and validate. Returns false
+// if parsing fails, help was requested, or the final state is invalid.
 bool ContextBase::testCmdArgs(int argc, char **argv) {
 	_argc = argc;
 	_argv = argv;
@@ -181,7 +187,7 @@ bool ContextBase::parseCmdArgs(int argc, char **argv, int skipFirstArgs) {
 
 
 	for (_i=_skipFirstArgs; _i < argc; _i++) {
-		if (isUsed(_i - _skipFirstArgs)) {
+		if (isCurrentArgUsed()) {
 			continue;
 		}
 
@@ -302,11 +308,13 @@ bool ContextBase::isValidState()
 }
 
 
+// After every handler has run, any argv entry still not marked "used" is an
+// option this tool does not recognize. Collect them all into the error message.
 bool ContextBase::cmdArgsValid()
 {
 	bool retval = true;
 	for (_i = _skipFirstArgs; _i < _argc; _i++) {
-		if (!isUsed(_i - _skipFirstArgs)) {
+		if (!isCurrentArgUsed()) {
 			_errorMsg += "\n***** ERROR: Unrecognized parameter: ";
 			_errorMsg += _argv[_i];
 			_errorMsg += " *****";
@@ -358,6 +366,9 @@ bool ContextBase::openFiles() {
 	return true;
 }
 
+// Pick which input file supplies the BAM header and reference list: the first
+// BAM query file if there is one, otherwise the first BAM database file. The
+// chosen index is cached so the search only runs once.
 int ContextBase::getBamHeaderAndRefIdx() {
 	if (_bamHeaderAndRefIdx != -1) {
 		//already found which BAM file to use for the header
@@ -390,14 +401,14 @@ int ContextBase::getUnspecifiedSeed()
 bool ContextBase::handle_bed()
 {
 	setExplicitBedOutput(true);
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
 bool ContextBase::handle_fbam()
 {
 	setUseFullBamTags(true);
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
@@ -408,23 +419,23 @@ bool ContextBase::handle_g()
 		return false;
 	}
 	openGenomeFile(_argv[_i+1]);
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	_i++;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
 bool ContextBase::handle_h()
 {
 	setShowHelp(true);
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
 bool ContextBase::handle_header()
 {
 	setPrintHeader(true);
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
@@ -435,9 +446,9 @@ bool ContextBase::handle_i()
 		return false;
 	}
 	addInputFile(_argv[_i+1]);
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	_i++;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
@@ -448,16 +459,16 @@ bool ContextBase::handle_n()
 		return false;
 	}
 	setNumOutputRecords(atoi(_argv[_i + 1]));
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	_i++;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
 bool ContextBase::handle_nobuf()
 {
 	setUseBufferedOutput(false);
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
@@ -468,9 +479,9 @@ bool ContextBase::handle_iobuf()
 		return false;
 	}
 	if (!parseIoBufSize(_argv[_i + 1])) return false;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	_i++;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
@@ -483,30 +494,30 @@ bool ContextBase::handle_seed()
 	_hasConstantSeed = true;
 	_seed  = atoi(_argv[_i+1]);
 	rand_set_seed(_seed);
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	_i++;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
 bool ContextBase::handle_split()
 {
     setObeySplits(true);
-     markUsed(_i - _skipFirstArgs);
+     markCurrentArgUsed();
 	return true;
 }
 
 bool ContextBase::handle_sorted()
 {
 	setSortedInput(true);
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
 bool ContextBase::handle_ubam()
 {
     setUncompressedBam(true);
-    markUsed(_i - _skipFirstArgs);
+    markCurrentArgUsed();
 	return true;
 }
 
@@ -520,9 +531,9 @@ bool ContextBase::handle_c()
 	}
     if ((_i+1) < _argc) {
         _keyListOps->setColumns(_argv[_i + 1]);
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
         _i++;
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
         return true;
     }
     return false;
@@ -537,9 +548,9 @@ bool ContextBase::handle_o()
 	}
     if ((_i+1) < _argc) {
     	 _keyListOps->setOperations(_argv[_i + 1]);
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
         _i++;
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
         return true;
     }
     return false;
@@ -557,9 +568,9 @@ bool ContextBase::handle_prec()
     		return false;
     	}
     	 _reportPrecision = prec;
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
         _i++;
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
         return true;
     }
 	_errorMsg += "\n***** ERROR: -prec must be followed by a positive integer. Exiting. *****";
@@ -577,9 +588,9 @@ bool ContextBase::handle_null()
 	}
     if ((_i+1) < _argc) {
     	 _keyListOps->setNullValue(_argv[_i + 1]);
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
         _i++;
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
         return true;
     }
     return false;
@@ -595,9 +606,9 @@ bool ContextBase::handle_delim()
 	}
     if ((_i+1) < _argc) {
     	 _keyListOps->setDelimStr(_argv[_i + 1]);
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
         _i++;
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
     }
     return true;
 }
@@ -605,14 +616,14 @@ bool ContextBase::handle_delim()
 bool ContextBase::handle_sortout()
 {
 	setSortOutput(true);
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
 bool ContextBase::handle_nonamecheck()
 {
 	setNameCheckDisabled(true);
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
@@ -647,6 +658,10 @@ FileRecordMgr *ContextBase::getNewFRM(const string &filename, int fileIdx) {
 	}
 }
 
+// Parse the -iobuf argument, which is a number optionally followed by a K, M,
+// or G suffix, into a byte count stored in _ioBufSize. Returns false (with an
+// error message set) on an unrecognized suffix, non-numeric value, or a size
+// below MIN_ALLOWED_BUF_SIZE.
 bool ContextBase::parseIoBufSize(string bufStr)
 {
 	char lastChar = bufStr[bufStr.size()-1];
@@ -654,13 +669,13 @@ bool ContextBase::parseIoBufSize(string bufStr)
 	if (!isdigit(lastChar)) {
 		switch (lastChar) {
 		case 'K':
-			multiplier = 1 << 10;
+			multiplier = BYTES_PER_KILOBYTE;
 			break;
 		case 'M':
-			multiplier = 1 << 20;
+			multiplier = BYTES_PER_MEGABYTE;
 			break;
 		case 'G':
-			multiplier = 1 << 30;
+			multiplier = BYTES_PER_GIGABYTE;
 			break;
 		default:
 			_errorMsg = "\n***** ERROR: Unrecognized memory buffer size suffix \'";

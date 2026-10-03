@@ -30,6 +30,18 @@ typedef int64_t CHRPOS;
 //************************************************
 // VectorOps Class methods and elements
 //************************************************
+//
+// VectorOps wraps a vector of string tokens (typically one column extracted
+// from a set of records) and exposes a family of summary operations over it:
+// numeric reductions (sum, mean, stddev, median, min/max), categorical
+// reductions (mode, anti-mode, distinct, counts) and textual joins (collapse,
+// concat, frequency histograms).
+//
+// Numeric operations lazily materialise a parallel vector<double> (_vecd) the
+// first time one is requested; several of the methods mutate the underlying
+// string vector (e.g. by sorting it), so an instance is intended to be used
+// for a single pass of reductions rather than reused across unrelated calls.
+//************************************************
 class VectorOps {
 
 public:
@@ -87,10 +99,10 @@ public:
     string GetLast(void);
     
 private:
-    vector<string> _vecs;
-    vector<double> _vecd;
-    uint32_t _size;
-    string _delimStr;
+    vector<string> _vecs;   // the raw string tokens being summarised
+    vector<double> _vecd;    // cached numeric view of _vecs, filled on demand
+    uint32_t _size;          // number of tokens supplied at construction
+    string _delimStr;        // delimiter used when joining elements into output
 };
 
 #endif /* VECTOROPS_H */

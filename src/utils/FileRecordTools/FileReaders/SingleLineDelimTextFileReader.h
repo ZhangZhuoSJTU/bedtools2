@@ -15,6 +15,11 @@
 
 typedef int64_t CHRPOS;
 
+// Byte offset of a field boundary within the line currently held by the
+// reader. Records are scanned one line at a time, so an offset only ever
+// addresses within that single line's buffer.
+typedef short LineOffset;
+
 class SingleLineDelimTextFileReader : public FileReader {
 public:
 	//Allow VCF records to access a specialized private method.
@@ -48,6 +53,14 @@ protected:
 	bool _inheader;
 	bool detectAndHandleHeader();
 	bool findDelimiters();
+
+	// Resolve a field's [start, end) bounds from the compact position
+	// table. Field offsets are kept in the reader's line-local coordinate
+	// space, so all accessors normalize through these helpers rather
+	// than indexing _delimPositions directly.
+	int startOffset(int fieldNum) const;
+	int endOffset(int fieldNum) const;
+	int fieldLength(int fieldNum) const;
 
 	//This is actually a very specialized function strictly for VCF
 	//records to read and process extra information about Structural Variants.

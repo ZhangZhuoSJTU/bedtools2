@@ -23,8 +23,35 @@ using namespace std;
 
 
 //************************************************
+// Named constants (replace hard-coded literals).
+//************************************************
+namespace FlankBedConstants {
+    // Sentinel returned by GenomeFile::getChromSize when a chromosome is
+    // absent from the genome file.
+    const int CHROM_NOT_FOUND = -1;
+
+    // Process exit status used on fatal errors.
+    const int EXIT_FAILURE_STATUS = 1;
+
+    // The very first base of a chromosome (BED coordinates are 0-based).
+    const int CHROM_FIRST_BASE = 0;
+
+    // Strand symbol for a feature on the forward strand.
+    const char * const STRAND_FORWARD = "+";
+    // Strand symbol for a feature on the reverse strand.
+    const char * const STRAND_REVERSE = "-";
+}
+
+
+//************************************************
 // Class methods and elements
 //************************************************
+//
+// BedFlank implements "bedtools flank": for each feature it creates new
+// flanking features to the left and right (and, with -s, honours strand).
+// Flank sizes may be given in absolute bp or as a fraction of the feature
+// length (-pct). Flanks are clamped to the bounds of the chromosome.
+//
 class BedFlank {
 
 public:

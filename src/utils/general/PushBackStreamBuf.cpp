@@ -21,6 +21,8 @@ PushBackStreamBuf::~PushBackStreamBuf()
 {
 }
 
+// Consume and return the next character, drawing from the pushed-back buffer
+// first and falling through to the underlying stream once it is empty.
 int PushBackStreamBuf::sbumpc()
  {
 	int c = 0;
@@ -33,11 +35,15 @@ int PushBackStreamBuf::sbumpc()
 	return c;
 }
 
+// Replace the pushed-back buffer with newBuf; its contents are returned by
+// subsequent reads before the underlying stream is touched again.
 void PushBackStreamBuf::pushBack(const BTlist<int> &newBuf)
 {
 	_buffer = newBuf;
 }
 
+// Peek at the next character (without consuming it), preferring the pushed-back
+// buffer and otherwise the underlying stream.
 int PushBackStreamBuf::underflow()
 {
 	int c = 0;

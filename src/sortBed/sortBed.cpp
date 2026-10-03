@@ -13,8 +13,11 @@
 #include "lineFileUtilities.h"
 #include "sortBed.h"
 
+using namespace SortBedConstants;
+
 //
-// Constructor
+// Constructor: load the BED file into an (already start-sorted) per-chrom
+// map and optionally echo the header before any sorted output.
 //
 BedSort::BedSort(string &bedFile, bool printHeader,string &faidxFile):_faidxFile(faidxFile) {
     _bedFile = bedFile;
@@ -34,6 +37,8 @@ BedSort::~BedSort(void) {
 }
 
 
+// Default sort: chromosome (ascending, via the map ordering) then start
+// position (the per-chrom lists are already start-sorted on load).
 void BedSort::SortBed() {
 
     // loop through each chromosome and merge their BED entries
@@ -48,6 +53,9 @@ void BedSort::SortBed() {
     }
 }
 
+// Sort using an explicit chromosome order taken from a faidx/genome index
+// file. Every chromosome present in the BED must be declared in the index,
+// and the index must not declare any chromosome twice.
 void BedSort::SortBedOnFaidx()
 		{
 		set<string> all_chromosomes;
@@ -115,10 +123,11 @@ void BedSort::SortBedOnFaidx()
 		}
 
 
+// Sort every feature in the file by size (ascending), ignoring chromosome.
 void BedSort::SortBedBySizeAsc() {
 
     vector<BED> masterList;
-    masterList.reserve(1000000);
+    masterList.reserve(MASTER_LIST_RESERVE);
 
     // loop through each chromosome and merge their BED entries
     for (masterBedMapNoBin::iterator m = _bed->bedMapNoBin.begin(); m != _bed->bedMapNoBin.end(); ++m) {
@@ -142,10 +151,11 @@ void BedSort::SortBedBySizeAsc() {
 }
 
 
+// Sort every feature in the file by size (descending), ignoring chromosome.
 void BedSort::SortBedBySizeDesc() {
 
     vector<BED> masterList;
-    masterList.reserve(1000000);
+    masterList.reserve(MASTER_LIST_RESERVE);
 
     // loop through each chromosome and merge their BED entries
     for (masterBedMapNoBin::iterator m = _bed->bedMapNoBin.begin(); m != _bed->bedMapNoBin.end(); ++m) {
@@ -168,6 +178,7 @@ void BedSort::SortBedBySizeDesc() {
     }
 }
 
+// Within each chromosome, sort the features by size (ascending).
 void BedSort::SortBedByChromThenSizeAsc() {
 
     // loop through each chromosome and merge their BED entries
@@ -184,6 +195,7 @@ void BedSort::SortBedByChromThenSizeAsc() {
 }
 
 
+// Within each chromosome, sort the features by size (descending).
 void BedSort::SortBedByChromThenSizeDesc() {
 
     // loop through each chromosome and merge their BED entries
@@ -201,9 +213,11 @@ void BedSort::SortBedByChromThenSizeDesc() {
 }
 
 
+// Within each chromosome, sort the features by score (ascending).
+// Requires at least BED5 so that a score column exists.
 void BedSort::SortBedByChromThenScoreAsc() {
 
-    if (_bed->bedType >= 5) {
+    if (_bed->bedType >= MIN_BEDTYPE_FOR_SCORE) {
         // loop through each chromosome and merge their BED entries
         for (masterBedMapNoBin::iterator m = _bed->bedMapNoBin.begin(); m != _bed->bedMapNoBin.end(); ++m) {
 
@@ -218,14 +232,16 @@ void BedSort::SortBedByChromThenScoreAsc() {
     }
     else {
         cerr << "Error: Requested a sort by score, but your BED file does not appear to be in BED 5 format or greater.  Exiting." << endl;
-        exit(1);
+        exit(EXIT_FAILURE_STATUS);
     }
 }
 
 
+// Within each chromosome, sort the features by score (descending).
+// Requires at least BED5 so that a score column exists.
 void BedSort::SortBedByChromThenScoreDesc() {
 
-    if (_bed->bedType >= 5) {
+    if (_bed->bedType >= MIN_BEDTYPE_FOR_SCORE) {
         // loop through each chromosome and merge their BED entries
         for (masterBedMapNoBin::iterator m = _bed->bedMapNoBin.begin(); m != _bed->bedMapNoBin.end(); ++m) {
 
@@ -240,7 +256,7 @@ void BedSort::SortBedByChromThenScoreDesc() {
     }
     else {
         cerr << "Error: Requested a sort by score, but your BED file does not appear to be in BED 5 format or greater.  Exiting." << endl;
-        exit(1);
+        exit(EXIT_FAILURE_STATUS);
     }
 }
 

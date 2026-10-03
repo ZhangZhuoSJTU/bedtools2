@@ -27,23 +27,38 @@
 #include "KeyListOps.h"
 
 
+// ContextBase is the common base class for every tool's "context": the object
+// that owns an operation's settings (input/output files, file types, genome
+// file, run options and output format). Each sub-command (intersect, merge,
+// jaccard, ...) derives its own context from this class, adds the options that
+// are specific to that tool, and overrides the command-line parsing and
+// validation hooks below as needed.
 class ContextBase {
 public:
 	ContextBase();
 	virtual ~ContextBase();
 
+	// Shorthand aliases for the file- and record-type enumerations that the
+	// FileRecordTypeChecker exposes; used throughout the context classes.
 	typedef FileRecordTypeChecker::FILE_TYPE ContextFileType;
 	typedef FileRecordTypeChecker::RECORD_TYPE ContextRecordType;
 
+	// Every bedtools sub-command has an entry in this enumeration. The value
+	// is resolved from the invoked program name (see _programNames) and tells
+	// the shared code which tool is currently running.
 	typedef enum {UNSPECIFIED_PROGRAM, INTERSECT, WINDOW, CLOSEST, COVERAGE, MAP, GENOMECOV, MERGE, CLUSTER,
 		COMPLEMENT, SUBTRACT, SLOP, FLANK, SORT, RANDOM, SAMPLE, SHUFFLE, ANNOTATE, MULTIINTER, UNIONBEDG, PAIRTOBED,
 		PAIRTOPAIR,BAMTOBED, BEDTOBAM, BEDTOFASTQ, BEDPETOBAM, BED12TOBED6, GETFASTA, MASKFASTA, NUC,
 		MULTICOV, TAG, JACCARD, OVERLAP, IGV, LINKS,MAKEWINDOWS, GROUPBY, EXPAND, SPACING, FISHER, GROUP_BY} PROGRAM_TYPE;
 
+	// Which sub-command is running, the open file managers, and the mapping
+	// from a program name to its PROGRAM_TYPE.
 	PROGRAM_TYPE getProgram() const { return _program; }
 	FileRecordMgr *getFile(int fileIdx) { return _files[fileIdx]; }
 	void setProgram(PROGRAM_TYPE program) { _program = program; }
 
+	// Register an input file by name. The file is not actually opened until
+	// openFiles() runs, so order of registration defines the file indices.
 	void addInputFile(const string &inputFile) { _fileNames.push_back(inputFile); }
 
 	int getNumInputFiles() const { return _fileNames.size(); }
@@ -58,6 +73,8 @@ public:
 	refs_t* getCramRefs(int fileIdx) { return _files[fileIdx]->getCramRefs(); }
 	int getBamHeaderAndRefIdx(); //return idx of 1st query that is BAM. If none, first DB that is BAM.
 
+	// Whether records should be pre-merged before the operation runs, and the
+	// strand constraint applied when they are (used by merge/jaccard/etc.).
 	bool getUseMergedIntervals() const { return _useMergedIntervals; }
 	void setUseMergedIntervals(bool val) { _useMergedIntervals = val; }
 	FileRecordMergeMgr::WANTED_STRAND_TYPE getDesiredStrand() const { return _desiredStrand; }
@@ -70,6 +87,9 @@ public:
 	void setOutputFileType(ContextFileType fileType) { _outputFileType = fileType; }
 	ContextFileType getOutputFileType() const { return _outputFileType; }
 
+	// Top-level entry point: parse the command line, then validate it.
+	// Returns false if parsing failed, help was requested, or the resulting
+	// state is invalid.
 	virtual bool testCmdArgs(int argc, char **argv);
 	virtual bool errorEncountered();
 
@@ -91,15 +111,20 @@ public:
     bool getExplicitBedOutput() const { return _explicitBedOutput; }
     void setExplicitBedOutput(bool val) { _explicitBedOutput = val; }
 
+    // -ubam: emit uncompressed BAM (level 0) rather than the default.
     bool getUncompressedBam() const { return _uncompressedBam; }
     void setUncompressedBam(bool val) { _uncompressedBam = val; }
 
+    // -nobuf toggles this off to flush output as it is produced.
     bool getUseBufferedOutput() const { return _useBufferedOutput; }
     void setUseBufferedOutput(bool val) { _useBufferedOutput = val; }
 
+    // -sorted: promise that the input is coordinate-sorted (enables the
+    // low-memory sweeping algorithm instead of loading everything).
     virtual bool getSortedInput() const {return _sortedInput; }
     virtual void setSortedInput(bool val) { _sortedInput = val; }
 
+    // -sortout: request that the output be sorted.
     virtual bool getSortOutput() const {return _sortOutput; }
     virtual void setSortOutput(bool val) { _sortOutput = val; }
 
@@ -158,23 +183,34 @@ public:
 	bool isCram() const { return _isCram; }
 
 protected:
+	// The running sub-command.
 	PROGRAM_TYPE _program;
 
+	// Input files: the names as given on the command line, and the matching
+	// opened file managers (populated lazily by openFiles()).
 	vector<string> _fileNames;
 	vector<FileRecordMgr *> _files;
 	bool _allFilesOpened;
+	// Lookup table from a program name string to its PROGRAM_TYPE, plus the
+	// exact name this process was invoked with.
 	map<string, PROGRAM_TYPE> _programNames;
 	string _origProgramName;
 
 	NewGenomeFile *_genomeFile;
 
+	// Resolved output format, and whether it has already been determined (the
+	// determination is cached so it only happens once).
 	ContextFileType _outputFileType;
 	bool _outputTypeDetermined;
 
 	map<int, string> _headers;
 	map<int, BamTools::RefVector> _references;
 
+	// Accumulated error/help text, reported back to the user on failure.
 	string _errorMsg;
+	// Per-argument "already consumed" flags, indexed by (argv position minus
+	// _skipFirstArgs). _skipFirstArgs is the count of leading argv entries
+	// (e.g. the sub-command name) that the option parser does not process.
 	vector<bool> _argsProcessed; //used for processing cmdLine args.
 	int _skipFirstArgs;
 	bool _showHelp;
@@ -183,6 +219,11 @@ protected:
     bool _useBufferedOutput;
     size_t _ioBufSize;
 
+	// The following flags back the intersect-family options (declared here so
+	// that determineOutputType() and other shared code can see them). Their
+	// public accessors live in ContextIntersect. Names map to the CLI flags:
+	//   _anyHit  -> -u,  _noHit -> -v,  _writeA -> -wa,  _writeB -> -wb,
+	//   _leftJoin -> -loj, _writeCount -> -c, _writeOverlap -> -wo, etc.
 	bool _anyHit;
     bool _noHit;
     bool _writeA;
@@ -240,6 +281,15 @@ protected:
 
 	void markUsed(int i) { _argsProcessed[i] = true; }
 	bool isUsed(int i) const { return _argsProcessed[i]; }
+
+	// Convenience wrappers that act on the argument the parser is currently
+	// positioned at (argv index _i, converted to an _argsProcessed index by
+	// subtracting the skipped leading args). They exist only to factor out the
+	// repeated "_i - _skipFirstArgs" index arithmetic from the option handlers;
+	// the behavior is identical to calling markUsed()/isUsed() with that index.
+	void markCurrentArgUsed() { markUsed(_i - _skipFirstArgs); }
+	bool isCurrentArgUsed() const { return isUsed(_i - _skipFirstArgs); }
+
 	virtual bool parseCmdArgs(int argc, char **argv, int skipFirstArgs);
 	bool cmdArgsValid();
 	virtual bool openFiles();
@@ -261,7 +311,13 @@ protected:
 	// a chrom name is a zero.
 	conventionType _fileHasLeadingZeroInChromNames;
 
+	// Smallest I/O buffer the -iobuf option will accept, in bytes.
 	static const int MIN_ALLOWED_BUF_SIZE = 8;
+	// Byte multipliers for the K/M/G suffixes accepted by -iobuf. Using named
+	// constants keeps parseIoBufSize() readable and the powers unambiguous.
+	static const size_t BYTES_PER_KILOBYTE = 1 << 10;
+	static const size_t BYTES_PER_MEGABYTE = 1 << 20;
+	static const size_t BYTES_PER_GIGABYTE = 1 << 30;
 	BlockMgr *_splitBlockInfo;
 
     testType _allFilesHaveChrInChromNames;
@@ -270,6 +326,10 @@ protected:
 	bool _inheader;
 
 
+    // Per-option handlers invoked by parseCmdArgs(). Each consumes the option
+    // (and its value argument, if any) at the current parse position, marks the
+    // consumed argv entries used, and returns false on a malformed option.
+    // Derived contexts add their own handlers and may override these.
     virtual bool handle_bed();
 	virtual bool handle_fbam();
 	virtual bool handle_g();

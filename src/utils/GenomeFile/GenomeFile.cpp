@@ -12,6 +12,22 @@
 #include "lineFileUtilities.h"
 #include "GenomeFile.h"
 
+// Process-exit status used when the genome file is missing or malformed.
+static const int GENOMEFILE_ERROR_EXIT_CODE = 1;
+
+// A genome-file line must have at least a chromosome name and a length.
+static const size_t MIN_GENOME_FILE_FIELDS = 2;
+
+// Column indices within a genome-file line.
+static const size_t CHROM_NAME_FIELD = 0;
+static const size_t CHROM_SIZE_FIELD = 1;
+
+// Base used when parsing a chromosome length with strtol.
+static const int CHROM_SIZE_NUMERIC_BASE = 10;
+
+// Leading token that marks a line as a comment, to be skipped.
+static const char * const COMMENT_PREFIX = "#";
+
 
 GenomeFile::GenomeFile(const string &genomeFile) {
     _genomeFile = genomeFile;
@@ -33,6 +49,8 @@ GenomeFile::~GenomeFile(void) {
 }
 
 
+// Read the genome file line by line, storing each valid chromosome's size and
+// building the cumulative start-offset table used by projectOnGenome().
 void GenomeFile::loadGenomeFileIntoMap() {
 
     string genomeLine;
@@ -43,7 +61,7 @@ void GenomeFile::loadGenomeFileIntoMap() {
     ifstream genome(_genomeFile.c_str(), ios::in);
     if ( !genome ) {
         cerr << "Error: The requested genome file (" << _genomeFile << ") could not be opened. Exiting!" << endl;
-        exit (1);
+        exit (GENOMEFILE_ERROR_EXIT_CODE);
     }
 
     while (getline(genome, genomeLine)) {
@@ -53,18 +71,20 @@ void GenomeFile::loadGenomeFileIntoMap() {
 
         // ignore a blank line
         if (genomeFields.size() > 0) {
-            if (genomeFields[0].find("#") != 0) {
+            // Skip comment lines (those whose first field begins with '#').
+            if (genomeFields[CHROM_NAME_FIELD].find(COMMENT_PREFIX) != 0) {
                 // we need at least 2 columns
-                if (genomeFields.size() >= 2) {
-                    char *p2End;
-                    long c2;
+                if (genomeFields.size() >= MIN_GENOME_FILE_FIELDS) {
+                    char *sizeParseEnd;
+                    long parsedSize;
                     // make sure the second column is numeric.
-                    c2 = strtol(genomeFields[1].c_str(), &p2End, 10);
+                    parsedSize = strtol(genomeFields[CHROM_SIZE_FIELD].c_str(), &sizeParseEnd, CHROM_SIZE_NUMERIC_BASE);
+                    (void)parsedSize; // only used to validate numeric-ness via sizeParseEnd
 
-                    // strtol  will set p2End to the start of the string if non-integral, base 10
-                    if (p2End != genomeFields[1].c_str()) {
-                        string chrom       = genomeFields[0];
-                        CHRPOS size           = atol(genomeFields[1].c_str());
+                    // strtol  will set sizeParseEnd to the start of the string if non-integral, base 10
+                    if (sizeParseEnd != genomeFields[CHROM_SIZE_FIELD].c_str()) {
+                        string chrom       = genomeFields[CHROM_NAME_FIELD];
+                        CHRPOS size           = atol(genomeFields[CHROM_SIZE_FIELD].c_str());
                         _chromSizes[chrom] = size;
                         _chromList.push_back(chrom);
                         _startOffsets.push_back(_genomeLength);
@@ -74,7 +94,7 @@ void GenomeFile::loadGenomeFileIntoMap() {
                 else {
                     cerr << "Less than the req'd two fields were encountered in the genome file (" << _genomeFile << ")";
                     cerr << " at line " << lineNum << ".  Exiting." << endl;
-                    exit (1);
+                    exit (GENOMEFILE_ERROR_EXIT_CODE);
                 }
             }
         }
@@ -82,6 +102,8 @@ void GenomeFile::loadGenomeFileIntoMap() {
     }
 }
 
+// Translate a genome-wide linear position into the (chromosome name, offset
+// within that chromosome) pair it corresponds to.
 pair<string, CHRPOS> GenomeFile::projectOnGenome(CHRPOS genome_pos) {
     // search for the chrom that the position belongs on.
     // add 1 to genome position b/c of zero-based, half open.
@@ -96,6 +118,7 @@ pair<string, CHRPOS> GenomeFile::projectOnGenome(CHRPOS genome_pos) {
     return make_pair(chrom, start);
 }
     
+// Return the size of the named chromosome, or (uint64_t)-1 if it is unknown.
 uint64_t GenomeFile::getChromSize(const string &chrom) {
     chromToSizes::const_iterator chromIt = _chromSizes.find(chrom);
     if (chromIt != _chromSizes.end())

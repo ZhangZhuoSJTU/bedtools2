@@ -8,6 +8,13 @@
 #include "CloseSweep.h"
 #include "ContextClosest.h"
 
+// Initial capacity reserved for each per-distance bucket of records. Buckets
+// are reused across queries, so this just avoids repeated small reallocations.
+static const int DEFAULT_BUCKET_RESERVE = 16;
+
+// Sentinel returned by the RecDistList queries below to mean "no such record".
+static const CHRPOS NO_LEFT_END_POS = -1;
+
 RecDistList::RecDistList(int maxSize)
 :  _kVal(maxSize),
    _empty(true),
@@ -34,10 +41,11 @@ RecDistList::~RecDistList() {
 
 }
 
+// Reset the list to empty, keeping the bucket vectors allocated for reuse.
 void RecDistList::clear() {
 	for (int i=0; i < _kVal; i++) {
 		_allRecs[i]->clear();
-		_allRecs[i]->reserve(16);
+		_allRecs[i]->reserve(DEFAULT_BUCKET_RESERVE);
 	}
 	for (int i=0; i < _kVal; i++) {
 		_distIndex[i].first = -1;
@@ -48,6 +56,10 @@ void RecDistList::clear() {
 	_totalRecs = 0;
 }
 
+// Insert a record at the given distance, keeping the list limited to the _kVal
+// smallest distinct distances. Records sharing an existing distance are grouped
+// together. Returns false only when the distance is larger than everything held
+// and the list is already full.
 bool RecDistList::addRec(CHRPOS dist, Record *record, chromDirType chromDir) {
 	CHRPOS newPos = 0;
 	bool mustAppend = false;
@@ -91,7 +103,7 @@ bool RecDistList::addRec(CHRPOS dist, Record *record, chromDirType chromDir) {
 		_currNumIdxs++;
 	}
 	_allRecs[useElemIdx]->clear();
-	_allRecs[useElemIdx]->reserve(16);
+	_allRecs[useElemIdx]->reserve(DEFAULT_BUCKET_RESERVE);
 	_allRecs[useElemIdx]->push_back(elemPairType(chromDir, record));
 
 	_distIndex[newPos].first = (int)dist;
@@ -103,6 +115,8 @@ bool RecDistList::addRec(CHRPOS dist, Record *record, chromDirType chromDir) {
 
 //if true, pos will be the idx the distance is at.
 //if false, pos will be the idx to insert at.
+// Binary-search the sorted distance index for dist. On success pos is the index
+// holding that distance; on failure pos is the index where it would be inserted.
 bool RecDistList::find(CHRPOS dist, CHRPOS &pos) const {
 	CHRPOS lbound=0, ubound=_currNumIdxs-1, currVal =0;
 	pos = 0;
@@ -123,9 +137,12 @@ bool RecDistList::find(CHRPOS dist, CHRPOS &pos) const {
 	return false;
 }
 
+// Return the distance of the farthest-left record currently held, or
+// NO_LEFT_END_POS when there is none (either the list is empty or the farthest
+// bucket contains no LEFT-side records).
 CHRPOS RecDistList::getMaxLeftEndPos() const {
 
-	if (_empty) return -1;
+	if (_empty) return NO_LEFT_END_POS;
 
 	CHRPOS maxDist =_distIndex[_currNumIdxs-1].first;
 
@@ -136,7 +153,7 @@ CHRPOS RecDistList::getMaxLeftEndPos() const {
 			return maxDist;
 		}
 	}
-	return -1;
+	return NO_LEFT_END_POS;
 
 }
 
@@ -179,6 +196,7 @@ CloseSweep::CloseSweep(ContextClosest *context)
 	}
 }
 
+// Free the per-database upstream/downstream/overlap record lists.
 CloseSweep::~CloseSweep(void) {
 	for (int i=0; i < _numDBs; i++) {
 		delete _minUpstreamRecs[i];
@@ -187,6 +205,9 @@ CloseSweep::~CloseSweep(void) {
 	}
 }
 
+// Initialize the base sweep and then cache the frequently-read context options
+// (strand, distance mode, ignore flags, tie mode) into member flags so the hot
+// path avoids repeated context lookups.
 bool CloseSweep::init() {
 
     bool retVal =  NewChromSweep::init();
@@ -212,6 +233,9 @@ bool CloseSweep::init() {
     return retVal;
  }
 
+// For the current query, find the k-closest hits in every database: clear the
+// per-query bucket lists, scan cache and advancing db stream through
+// considerRecord(), finalize per-db selections, then reconcile across dbs.
 void CloseSweep::masterScan(RecordKeyVector &retList) {
 
 	_qForward = _currQueryRec->getStrandVal() == Record::FORWARD;
@@ -257,6 +281,9 @@ void CloseSweep::masterScan(RecordKeyVector &retList) {
 	checkMultiDbs(retList);
 }
 
+// Re-evaluate every cached database record against the current query via
+// considerRecord(), deleting those that are no longer useful and stopping early
+// once a record signals that no further cached records can qualify.
 void CloseSweep::scanCache(int dbIdx, RecordKeyVector &retList) {
 	recListIterType cacheIter = _caches[dbIdx].begin();
     while (cacheIter != _caches[dbIdx].end())
@@ -274,6 +301,9 @@ void CloseSweep::scanCache(int dbIdx, RecordKeyVector &retList) {
 }
 
 
+// Classify a database record relative to the current query (overlapping, to the
+// right, or to the left), compute its signed/absolute distance and stream
+// direction (up/downstream), and route it to tryToAddRecord().
 CloseSweep::rateOvlpType CloseSweep::considerRecord(Record *cacheRec, int dbIdx, bool &stopScanning) {
 
 	// Determine whether the hit and query intersect, and if so, what to do about it.
@@ -319,6 +349,9 @@ CloseSweep::rateOvlpType CloseSweep::considerRecord(Record *cacheRec, int dbIdx,
 	return IGNORE;
 }
 
+// Pick the final k-closest hits for one database from the collected overlap,
+// upstream, and downstream buckets, honoring forced-direction options and the
+// configured tie mode, and append them (with distances) to retList.
 void CloseSweep::finalizeSelections(int dbIdx, RecordKeyVector &retList) {
 
 	// Determine whether the overlaps, upstream, or downstream records have
@@ -414,6 +447,8 @@ void CloseSweep::finalizeSelections(int dbIdx, RecordKeyVector &retList) {
 
 
 
+// Append the records tied at a single distance to retList, respecting the tie
+// mode (first-only, last-only, or all). Returns how many records were added.
 int CloseSweep::addRecsToRetList(RecDistList::elemsType *recs, CHRPOS currDist, RecordKeyVector &retList) {
 
 	int hitsUsed = 0;
@@ -437,12 +472,16 @@ int CloseSweep::addRecsToRetList(RecDistList::elemsType *recs, CHRPOS currDist, 
 	}
 }
 
+// Append one hit and its distance to the result, bumping the hits-used counter.
 void CloseSweep::addSingleRec(Record *rec, CHRPOS currDist, int &hitsUsed, RecordKeyVector &retList) {
 	retList.push_back(rec);
 	_finalDistances.push_back(currDist);
 	hitsUsed++;
 }
 
+// When closest hits are resolved across all databases at once, re-rank the
+// combined hits by absolute distance and trim to k, counting tied distances
+// only once or fully according to the tie mode.
 void CloseSweep::checkMultiDbs(RecordKeyVector &retList) {
 //	//can skip this method if there's only one DB, or if we are
 //	//resolving closest hits for each db instead of all of them
@@ -593,6 +632,9 @@ bool CloseSweep::chromChange(int dbIdx, RecordKeyVector &retList, bool wantScan)
 }
 
 
+// Record the leftmost end position that the current query's hits reach, which
+// determines how much of the database cache can be safely purged during the
+// next query's sweep. Strand-specific purge points are tracked separately.
 void CloseSweep::setLeftClosestEndPos(int dbIdx)
 {
 
@@ -618,7 +660,7 @@ void CloseSweep::setLeftClosestEndPos(int dbIdx)
   CHRPOS downDist = downRecs->getMaxLeftEndPos();
 
 
-  if (upDist == -1 && downDist == -1) return;
+  if (upDist == NO_LEFT_END_POS && downDist == NO_LEFT_END_POS) return;
 
 	CHRPOS leftMostEndPos = (_currQueryRec->getStartPos() - max(upDist, downDist)) +1;
 	if ((!_sameStrand && !_diffStrand) ||
@@ -631,6 +673,8 @@ void CloseSweep::setLeftClosestEndPos(int dbIdx)
 	}
 }
 
+// True if the record ends before the recorded left-closest purge point for its
+// strand, meaning it can no longer be a closest hit and may be evicted.
 bool CloseSweep::beforeLeftClosestEndPos(int dbIdx, Record *rec)
 {
 	CHRPOS recEndPos = rec->getEndPos();
@@ -649,12 +693,18 @@ bool CloseSweep::beforeLeftClosestEndPos(int dbIdx, Record *rec)
 	return false;
 }
 
+// Reset both strand-specific left-closest purge points for a database (used on
+// chromosome changes and cache clears).
 void CloseSweep::clearClosestEndPos(int dbIdx)
 {
 	_maxPrevLeftClosestEndPos[dbIdx] = 0;
 	_maxPrevLeftClosestEndPosReverse[dbIdx] = 0;
 }
 
+// Apply strand/name/stream-direction filters to a candidate hit and, if it
+// survives, add it to the appropriate up/down/overlap bucket. Also maintains
+// cache-management side effects: signalling when to stop scanning records to
+// the right, and requesting deletion of records already past the purge point.
 CloseSweep::rateOvlpType CloseSweep::tryToAddRecord(Record *cacheRec, CHRPOS dist, int dbIdx, bool &stopScanning, chromDirType chromDir, streamDirType streamDir) {
 
 	//
@@ -720,6 +770,9 @@ CloseSweep::rateOvlpType CloseSweep::tryToAddRecord(Record *cacheRec, CHRPOS dis
 	return IGNORE;
 }
 
+// True when the active distance-mode and strand options guarantee that every
+// hit to the right of the query will be ignored regardless of strands, which
+// lets the right-side scan stop as soon as such a hit is encountered.
 bool CloseSweep::allHitsRightOfQueryIgnored() {
 	return ((_refDist && _ignoreDownstream) ||
 			(_aDist && ((_ignoreUpstream && _qReverse) || (_ignoreDownstream && _qForward))) ||
@@ -728,6 +781,9 @@ bool CloseSweep::allHitsRightOfQueryIgnored() {
 }
 
 
+// Detect the option combinations (-id/-iu with -D ref/a/b and strand choices)
+// that cause all left-side hits to be rejected, so the forward cache, reverse
+// cache, both, or neither can still be purged even with no left-side hits held.
 CloseSweep::purgeDirectionType CloseSweep::purgePointException() {
 
 	// Normally, we can't set a cache purge point if there are no

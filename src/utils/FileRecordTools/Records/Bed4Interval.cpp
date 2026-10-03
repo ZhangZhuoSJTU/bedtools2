@@ -14,10 +14,12 @@ Bed4Interval::~Bed4Interval()
 
 bool Bed4Interval::initFromFile(SingleLineDelimTextFileReader *fileReader)
 {
-	bool baseRetFlag = Bed3Interval::initFromFile(fileReader);
+	// A BED4 record is the BED3 core plus a single name column.
+	bool parsedBase = Bed3Interval::initFromFile(fileReader);
 
+	// Column 3 (0-based) holds the feature name.
 	fileReader->getField(3, _name);
-	return baseRetFlag;
+	return parsedBase;
 }
 
 inline void print_record(const string& chrom_name, CHRPOS start, CHRPOS end, const string& name, string& buf) {
@@ -52,7 +54,7 @@ void Bed4Interval::printNull(string &outBuf) const
 const string &Bed4Interval::getField(int fieldNum) const
 {
 	switch (fieldNum) {
-	case 4:
+	case NAME_COLUMN:
 		return _name;
 		break;
 	default:
@@ -62,7 +64,7 @@ const string &Bed4Interval::getField(int fieldNum) const
 }
 
 bool Bed4Interval::isNumericField(int fieldNum) {
-	return (fieldNum == 4 ? false : Bed3Interval::isNumericField(fieldNum));
+	return (fieldNum == NAME_COLUMN ? false : Bed3Interval::isNumericField(fieldNum));
 }
 
 

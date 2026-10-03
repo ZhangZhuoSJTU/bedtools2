@@ -20,6 +20,7 @@
 #include "unionBedGraphs.h"
 
 using namespace std;
+using namespace UnionBedGraphsConstants;
 
 
 UnionBedGraphs::UnionBedGraphs(std::ostream& _output,
@@ -53,6 +54,9 @@ UnionBedGraphs::~UnionBedGraphs() {
 }
 
 
+// Main driver: merge all bedGraph files one chromosome at a time using a
+// sweep line over START/END coordinates, printing the per-file coverage of
+// every segment between consecutive coordinates.
 void UnionBedGraphs::Union() {
     OpenBedgraphFiles();
 
@@ -73,8 +77,8 @@ void UnionBedGraphs::Union() {
         CHRPOS current_start = ConsumeNextCoordinate();
 
         // User wanted empty regions, and the first coordinate is not 0 - print a dummy empty coverage
-        if (print_empty_regions && current_start > 0)
-            PrintEmptyCoverage(0,current_start);
+        if (print_empty_regions && current_start > CHROM_ORIGIN)
+            PrintEmptyCoverage(CHROM_ORIGIN, current_start);
 
         // Intervals loop - until all intervals (of current chromosome) from all files are used.
         do {
@@ -95,6 +99,8 @@ void UnionBedGraphs::Union() {
 }
 
 
+// Pop every queue entry that shares the smallest coordinate, applying each
+// one's effect on the running coverage, and return that coordinate.
 CHRPOS UnionBedGraphs::ConsumeNextCoordinate() {
     assert(!queue.empty());
 
@@ -109,6 +115,8 @@ CHRPOS UnionBedGraphs::ConsumeNextCoordinate() {
 }
 
 
+// Apply a single sweep-line event: a START sets this file's depth and marks
+// it active; an END clears the depth and pulls the file's next interval in.
 void UnionBedGraphs::UpdateInformation(const PointWithDepth &item) {
     // Update the depth coverage for this file
 
@@ -131,36 +139,43 @@ void UnionBedGraphs::UpdateInformation(const PointWithDepth &item) {
 }
 
 
+// Print the optional header: the fixed chrom/start/end prefix followed by
+// one column title per input bedGraph file.
 void UnionBedGraphs::PrintHeader() {
-    output << "chrom\tstart\tend" ;
+    output << HEADER_PREFIX ;
     for (size_t i=0;i<titles.size();++i)
-        output << "\t" <<titles[i];
+        output << FIELD_SEPARATOR <<titles[i];
     output << endl;
 }
 
 
+// Emit one output row for the segment [start, end): chrom/start/end followed
+// by the current value of every input file. Skipped when nothing covers the
+// segment unless the user asked for empty regions to be reported.
 void UnionBedGraphs::PrintCoverage(CHRPOS start, CHRPOS end) {
     if ( current_non_zero_inputs == 0 && ! print_empty_regions )
         return ;
 
-    output << current_chrom << "\t"
-        << start << "\t"
+    output << current_chrom << FIELD_SEPARATOR
+        << start << FIELD_SEPARATOR
         << end;
 
     for (size_t i=0;i<current_depth.size();++i)
-        output << "\t" << current_depth[i] ;
+        output << FIELD_SEPARATOR << current_depth[i] ;
 
     output << endl;
 }
 
 
+// Emit one output row for a segment that no input file covers, writing the
+// configured "no coverage" value in every per-file column.
 void UnionBedGraphs::PrintEmptyCoverage(CHRPOS start, CHRPOS end) {
-    output << current_chrom << "\t"
-        << start << "\t"
+    output << current_chrom << FIELD_SEPARATOR
+        << start << FIELD_SEPARATOR
         << end;
 
     for (size_t i=0;i<current_depth.size();++i)
-        output << "\t" << no_coverage_value ;
+        output << FIELD_SEPARATOR << no_coverage_value ;
 
     output << endl;
 }
@@ -193,6 +208,8 @@ bool UnionBedGraphs::AllFilesDone() {
 }
 
 
+// Return the lexicographically smallest chromosome still pending across all
+// files; this is the chromosome processed in the next outer-loop iteration.
 string UnionBedGraphs::DetermineNextChrom() {
     string next_chrom;
     for (size_t i=0;i<current_bedgraph_item.size();++i) {

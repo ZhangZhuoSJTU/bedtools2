@@ -16,7 +16,7 @@ ContextFisher::~ContextFisher() {
 bool ContextFisher::parseCmdArgs(int argc, char **argv, int skipFirstArgs)
 {
 	for (_i=_skipFirstArgs; _i < argc; _i++) {
-		if (isUsed(_i - _skipFirstArgs)) {
+		if (isCurrentArgUsed()) {
 			continue;
 		}
 		else if (strcmp(_argv[_i], "-exclude") == 0) {
@@ -50,9 +50,9 @@ bool ContextFisher::handle_exclude()
     }
 
     do {
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
         _i++;
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
     } while (_argc > _i+1 && _argv[_i+1][0] != '-');
     setExcludeFile(string(_argv[_i]));
     return true;
@@ -61,7 +61,7 @@ bool ContextFisher::handle_exclude()
 bool ContextFisher::handle_m()
 {
 	setUseMergedIntervals(true);
-    markUsed(_i - _skipFirstArgs);
+    markCurrentArgUsed();
     _i++;
 	return true;
 }

@@ -29,6 +29,15 @@ public:
 	virtual int getNumFields() const  { return 6; }
 	static bool isNumericField(int fieldNum);
 
+	// 1-based column positions addressed by the generic field accessors
+	// (getField / isNumericField), distinct from the 0-based indices used
+	// when pulling raw fields out of the reader in initFromFile.
+	enum {
+		NAME_COLUMN   = 4,
+		SCORE_COLUMN  = 5,
+		STRAND_COLUMN = 6
+	};
+
 
 protected:
 	virtual ~Bed6Interval();

@@ -18,6 +18,8 @@ bool NoPosPlusRecord::initFromFile(FileReader *fileReader)
 
 bool NoPosPlusRecord::initFromFile(SingleLineDelimTextFileReader *fileReader)
 {
+	// This record has no positional (chrom/start/end) columns; every column
+	// is treated as a plus field.
 	return _plusFields.initFromFile(fileReader);
 }
 

@@ -8,6 +8,10 @@
 #include <sstream>
 
 
+// Radix used by the hand-rolled integer parser in str2chrPos().
+static const int DECIMAL_BASE = 10;
+
+
 //This functions recognizes only numbers with digits, plus sign, minus sign, decimal point, e, or E. Hexadecimal and pointers not currently supported.
 bool isNumeric(const string &str) {
 	bool hasDigits = false;
@@ -21,7 +25,8 @@ bool isNumeric(const string &str) {
 	return hasDigits;
 }
 
-//As above, but does not allow decimal points
+//As above, but does not allow decimal points (integers only, optionally signed
+//or in scientific notation; at least one digit is required).
 bool isInteger(const string &str) {
 	bool hasDigits = false;
 	for (int i=0; i < (int)str.size(); i++) {
@@ -34,6 +39,7 @@ bool isInteger(const string &str) {
 	return hasDigits;
 }
 
+// Strip any trailing carriage-return / line-feed characters from str in place.
 void trimNewlines(string& str) {
 	size_t len = str.length();
 	while (len > 0 && (str[len-1] == '\n' || str[len-1] == '\r'))
@@ -42,10 +48,14 @@ void trimNewlines(string& str) {
 }
 
 
+// Convenience overload: parse an entire std::string as a chromosome position.
 CHRPOS str2chrPos(const string &str) {
 	return str2chrPos(str.c_str(), str.size());
 }
 
+// Fast base-10 parser for chromosome positions: reads an optional leading '-'
+// then decimal digits, with a fallback to strtod for scientific notation.
+// Exits with an error on any other trailing characters.
 CHRPOS str2chrPos(const char * __restrict str, size_t ulen) {
 
 	if (ulen == 0) {
@@ -61,7 +71,7 @@ CHRPOS str2chrPos(const char * __restrict str, size_t ulen) {
 
 	for(;(last = *endpos); endpos ++) {
 		if(last < '0' || last > '9') break;
-		result = result * 10 + last - '0';
+		result = result * DECIMAL_BASE + last - '0';
 	}
 
 	if(last) {
@@ -80,6 +90,7 @@ CHRPOS str2chrPos(const char * __restrict str, size_t ulen) {
 	return neg?-result:result;
 }
 
+// Build a string whose characters are the (truncated) integer values in vec.
 string vectorIntToStr(const vector<int> &vec) {
 	string str;
 	str.reserve(vec.size());
@@ -90,6 +101,11 @@ string vectorIntToStr(const vector<int> &vec) {
 }
 
 
+// Return true if the line looks like a header/comment rather than a data row:
+// it starts with '>', '!' or '#', or begins with one of the UCSC header
+// keywords ("chrom"/"chr" followed by whitespace, "browser", "track",
+// "visibility"). Two implementations exist; the x86 variant hand-unrolls the
+// keyword comparison for speed but is functionally identical to the portable one.
 #if defined(__i386__) || defined(__x86_64__)
 bool isHeaderLine(const string &line) {
 	if (line[0] == '>') {

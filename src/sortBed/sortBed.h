@@ -21,8 +21,30 @@ using namespace std;
 
 
 //************************************************
+// Named constants (replace hard-coded literals).
+//************************************************
+namespace SortBedConstants {
+    // Space reserved up-front when flattening every chromosome's features
+    // into a single list for a whole-file sort. Purely a performance hint.
+    const size_t MASTER_LIST_RESERVE = 1000000;
+
+    // Sorting by score requires at least a BED5 record (chrom, start, end,
+    // name, score); this is the minimum field count that carries a score.
+    const int MIN_BEDTYPE_FOR_SCORE = 5;
+
+    // Process exit status used on fatal errors.
+    const int EXIT_FAILURE_STATUS = 1;
+}
+
+
+//************************************************
 // Class methods and elements
 //************************************************
+//
+// BedSort implements "bedtools sort". By default it emits features sorted
+// by chromosome then start position; it also offers sorts by size, by
+// score, and by a chromosome order supplied via a faidx/genome file.
+//
 class BedSort {
 
 public:

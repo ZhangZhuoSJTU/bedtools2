@@ -18,7 +18,7 @@ ContextSample::~ContextSample()
 
 bool ContextSample::parseCmdArgs(int argc, char **argv, int skipFirstArgs) {
 	for (_i=_skipFirstArgs; _i < argc; _i++) {
-		if (isUsed(_i - _skipFirstArgs)) {
+		if (isCurrentArgUsed()) {
 			continue;
 		}
 
@@ -58,9 +58,9 @@ bool ContextSample::handle_s()
 		_errorMsg = "\n***** ERROR: -s option given, but \"forward\" or \"reverse\" not specified. *****";
 		return false;
 	}
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	_i++;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
     return true;
 }
 

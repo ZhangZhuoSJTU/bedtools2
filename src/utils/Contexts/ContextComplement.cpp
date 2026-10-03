@@ -32,7 +32,7 @@ bool ContextComplement::isValidState()
 
 bool ContextComplement::parseCmdArgs(int argc, char **argv, int skipFirstArgs) {
   for (_i=_skipFirstArgs; _i < argc; _i++) {
-    if (isUsed(_i - _skipFirstArgs)) {
+    if (isCurrentArgUsed()) {
       continue;
     }
     else if (strcmp(_argv[_i], "-L") == 0) {
@@ -45,6 +45,6 @@ bool ContextComplement::parseCmdArgs(int argc, char **argv, int skipFirstArgs) {
 bool ContextComplement::handle_limit_chroms()
 {
     _onlyChromsWithBedRecords = true;
-    markUsed(_i - _skipFirstArgs);
+    markCurrentArgUsed();
     return true;
 }

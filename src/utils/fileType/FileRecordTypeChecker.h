@@ -21,16 +21,22 @@
 
 using namespace std;
 
+// Inspects the opening bytes of an input file and infers both its container
+// format (FILE_TYPE: BAM, VCF, gzip, delimited text, ...) and the specific
+// record layout within it (RECORD_TYPE: BED3/4/5/6/12, BEDGRAPH, GFF, VCF, ...).
+// The detection is heuristic and intentionally conservative.
 class FileRecordTypeChecker {
 public:
 
 	FileRecordTypeChecker();
 	~FileRecordTypeChecker() {}
 
+	// Container-level classification of the whole file.
 	typedef enum  { UNKNOWN_FILE_TYPE, EMPTY_FILE_TYPE, SINGLE_LINE_DELIM_TEXT_FILE_TYPE,
 			MULTI_LINE_ENTRY_TEXT_FILE_TYPE,
 			GFF_FILE_TYPE, GZIP_FILE_TYPE, BAM_FILE_TYPE, VCF_FILE_TYPE} FILE_TYPE;
 
+	// Layout of an individual record within the file.
 	typedef enum  { UNKNOWN_RECORD_TYPE, EMPTY_RECORD_TYPE, BED3_RECORD_TYPE, BED4_RECORD_TYPE, BEDGRAPH_RECORD_TYPE, BED5_RECORD_TYPE,
 		BED6_RECORD_TYPE, BED12_RECORD_TYPE, BED_PLUS_RECORD_TYPE, BED6_PLUS_RECORD_TYPE, BAM_RECORD_TYPE, VCF_RECORD_TYPE, GFF_RECORD_TYPE,
 		GFF_PLUS_RECORD_TYPE, NO_POS_PLUS_RECORD_TYPE} RECORD_TYPE;

@@ -28,8 +28,11 @@ const Bed12Interval &Bed12Interval::operator=(const Bed12Interval &other) {
 
 bool Bed12Interval::initFromFile(SingleLineDelimTextFileReader *fileReader)
 {
-	bool baseRetFlag = Bed6Interval::initFromFile(fileReader);
+	// The first six columns are a standard BED6 record.
+	bool parsedBase = Bed6Interval::initFromFile(fileReader);
 
+	// Columns 6-11 (0-based) are the BED12 block description:
+	// thickStart, thickEnd, itemRGB, blockCount, blockSizes, blockStarts.
 	 fileReader->getField(6, _thickStartStr);
 	 fileReader->getField(7, _thickEndStr);
 	 fileReader->getField(8, _itemRGB);
@@ -37,10 +40,11 @@ bool Bed12Interval::initFromFile(SingleLineDelimTextFileReader *fileReader)
 	 fileReader->getField(10, _blockSizes);
 	 fileReader->getField(11, _blockStarts);
 
+	// Convert the numeric columns once, up front.
 	 _thickStart = str2chrPos(_thickStartStr);
 	 _thickEnd = str2chrPos(_thickEndStr);
 	 _blockCount = (int)str2chrPos(_blockCountStr);
-	return baseRetFlag;
+	return parsedBase;
 }
 
 void Bed12Interval::clear() {
@@ -115,22 +119,22 @@ void Bed12Interval::printNull(string &outBuf) const
 const string &Bed12Interval::getField(int fieldNum) const
 {
 	switch (fieldNum) {
-	case 7:
+	case THICK_START_COLUMN:
 		return _thickStartStr;
 		break;
-	case 8:
+	case THICK_END_COLUMN:
 		return _thickEndStr;
 		break;
-	case 9:
+	case ITEM_RGB_COLUMN:
 		return _itemRGB;
 		break;
-	case 10:
+	case BLOCK_COUNT_COLUMN:
 		return _blockCountStr;
 		break;
-	case 11:
+	case BLOCK_SIZES_COLUMN:
 		return _blockSizes;
 		break;
-	case 12:
+	case BLOCK_STARTS_COLUMN:
 		return _blockStarts;
 		break;
 	default:
@@ -141,22 +145,22 @@ const string &Bed12Interval::getField(int fieldNum) const
 
 bool Bed12Interval::isNumericField(int fieldNum) {
 	switch (fieldNum) {
-	case 7:
+	case THICK_START_COLUMN:
 		return true;
 		break;
-	case 8:
+	case THICK_END_COLUMN:
 		return true;
 		break;
-	case 9:
+	case ITEM_RGB_COLUMN:
 		return false;
 		break;
-	case 10:
+	case BLOCK_COUNT_COLUMN:
 		return true;
 		break;
-	case 11:
+	case BLOCK_SIZES_COLUMN:
 		return false;
 		break;
-	case 12:
+	case BLOCK_STARTS_COLUMN:
 		return false;
 		break;
 	default:

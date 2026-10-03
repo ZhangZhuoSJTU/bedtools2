@@ -16,6 +16,8 @@ FileReader::~FileReader() {
 
 bool FileReader::open() {
 
+	// The input stream is wired up by setInputStream() before open() is
+	// called; if that hasn't happened we have no stream to read from.
 	if (_isFileOpen) {
 		return true;
 	} else {

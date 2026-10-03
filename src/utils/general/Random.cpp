@@ -3,11 +3,18 @@
 #ifdef USE_RAND
 #include <stdlib.h>
 
+// Number of bits a single rand() call contributes when two calls are combined
+// into one 64-bit value (RAND_MAX is typically 2^31 - 1).
+static const int RAND_BITS = 31;
+
+// Seed the C library PRNG used by this translation unit.
 void rand_set_seed(int seed)
 {
     srand(seed);
 }
 
+// Return a uniformly distributed value in [0, limit). Rejection sampling is
+// used to avoid the modulo bias that a plain "rand() % limit" would introduce.
 uint64_t rand_range(uint64_t limit)
 {
     if (limit <= RAND_MAX) {
@@ -24,13 +31,14 @@ uint64_t rand_range(uint64_t limit)
         // will not cover the range if RAND_MAX is smaller.
         uint64_t n, max = UINT64_MAX - (UINT64_MAX % limit);
         do {
-            n = (((uint64_t) rand()) << 31) | rand();
+            n = (((uint64_t) rand()) << RAND_BITS) | rand();
         } while (n >= max);
 
         return n % limit;
     }
 }
 
+// Return a uniformly distributed value in [0, 1].
 double rand_proportion()
 {
     return (double) rand() / (double) RAND_MAX;
@@ -41,6 +49,7 @@ double rand_proportion()
 
 static std::mt19937_64 mt_rand;
 
+// Seed the Mersenne Twister engine used by this translation unit.
 void rand_set_seed(int seed)
 {
     mt_rand.seed(seed);
@@ -51,6 +60,8 @@ void rand_set_seed(int seed)
 // do not have defined implementations so would produce different
 // results on different platforms.
 
+// Return a uniformly distributed value in [0, limit) using rejection sampling
+// to avoid modulo bias.
 uint64_t rand_range(uint64_t limit)
 {
     uint64_t n, max = mt_rand.max() - (mt_rand.max() % limit);
@@ -61,6 +72,7 @@ uint64_t rand_range(uint64_t limit)
     return n % limit;
 }
 
+// Return a uniformly distributed value in [0, 1].
 double rand_proportion()
 {
     return (double) mt_rand() / (double) mt_rand.max();

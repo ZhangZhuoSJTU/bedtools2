@@ -11,11 +11,15 @@
 
 using namespace std;
 
+// Abstract base for the per-format readers. A reader is handed a buffered
+// input stream and yields one record's worth of fields at a time; concrete
+// subclasses know how to carve a record out of their particular format.
 class FileReader {
 public:
 	FileReader();
 	virtual ~FileReader();
 	void setFileName(const string &filename) { _filename = filename; }
+	// Index of this file within the tool's ordered list of inputs.
 	virtual int getFileIdx() const { return _fileIdx; }
 	virtual void setFileIdx(int fileIdx) { _fileIdx = fileIdx; }
 

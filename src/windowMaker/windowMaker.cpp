@@ -11,6 +11,9 @@ Licenced under the GNU General Public License 2.0 license.
 ******************************************************************************/
 #include "windowMaker.h"
 
+using namespace WindowMakerConstants;
+
+// Fixed-size constructor: windows of width "size" advanced by "step".
 WindowMaker::WindowMaker(string &fileName, ID_METHOD id_method, INPUT_FILE_TYPE input_file_type, uint32_t size, uint32_t step, bool reverse)
 : _size(size)
 , _step(step)
@@ -25,6 +28,7 @@ WindowMaker::WindowMaker(string &fileName, ID_METHOD id_method, INPUT_FILE_TYPE 
         MakeWindowsFromBED(fileName);
 }
 
+// Fixed-count constructor: split each interval into "count" windows.
 WindowMaker::WindowMaker(string &fileName, ID_METHOD id_method, INPUT_FILE_TYPE input_file_type, uint32_t count, bool reverse)
     : _size(0)
     , _step(0)
@@ -42,6 +46,8 @@ WindowMaker::WindowMaker(string &fileName, ID_METHOD id_method, INPUT_FILE_TYPE 
 WindowMaker::~WindowMaker(void) {}
 
 
+// Treat every chromosome of the genome file as a single interval
+// spanning [0, chromSize) and window each one.
 void WindowMaker::MakeWindowsFromGenome(const string& genomeFileName) {
 
     NewGenomeFile *_genome = new NewGenomeFile(genomeFileName);
@@ -58,6 +64,7 @@ void WindowMaker::MakeWindowsFromGenome(const string& genomeFileName) {
     }
 }
 
+// Window each valid feature read from the input BED file.
 void WindowMaker::MakeWindowsFromBED(string& bedFileName) {
     BedFile bf(bedFileName);
     bf.Open();
@@ -70,6 +77,7 @@ void WindowMaker::MakeWindowsFromBED(string& bedFileName) {
     bf.Close();
 }
 
+// Dispatch to the fixed-size or fixed-count strategy chosen at construction.
 void WindowMaker::MakeBEDWindow(const BED& interval)
 {
     if (_window_method==FIXED_WINDOW_SIZE)
@@ -78,16 +86,19 @@ void WindowMaker::MakeBEDWindow(const BED& interval)
         MakeFixedCountWindow(interval);
 }
 
+// Compute how many fixed-size windows (given the current _step) are needed
+// to cover the interval, rounding up so a short trailing window still counts.
 uint32_t WindowMaker::CalculateWindows(const BED& interval) {
     uint32_t num_windows = (interval.end - interval.start) / _step;
     if ((interval.end - interval.start) % _step > 0) {
-        // add 1 to num_windows if the last window is less than _step 
+        // add 1 to num_windows if the last window is less than _step
         num_windows += 1;
     }
     return num_windows;
 }
+// Emit fixed-width windows, stepping across the interval by _step.
 void WindowMaker::MakeFixedSizeWindow(const BED& interval) {
-    uint32_t i=1;
+    uint32_t i = FIRST_WINDOW_INDEX;
     uint32_t num_windows = CalculateWindows(interval);
     for (uint32_t start = interval.start; start <= interval.end; start += _step, ++i) {
         string name = GenerateID(interval, i, num_windows, _reverse);
@@ -100,6 +111,8 @@ void WindowMaker::MakeFixedSizeWindow(const BED& interval) {
     }
 }
 
+// Partition the interval into exactly _count equal windows, extending the
+// final window to absorb any remainder so the whole interval is covered.
 void WindowMaker::MakeFixedCountWindow(const BED& interval) {
     CHRPOS interval_size = interval.end - interval.start ;
     CHRPOS window_size = (interval_size)/_count; // integer version of ceil(interval_size/_count)
@@ -126,7 +139,7 @@ void WindowMaker::MakeFixedCountWindow(const BED& interval) {
     }
 
 
-    uint32_t i=1;
+    uint32_t i = FIRST_WINDOW_INDEX;
     for (CHRPOS start = interval.start; start < interval.end; start += window_size, ++i) {
         string name = GenerateID(interval, i, _count, _reverse);
         CHRPOS end = min(start + window_size,interval.end);
@@ -142,6 +155,9 @@ void WindowMaker::MakeFixedCountWindow(const BED& interval) {
     }
 }
 
+// Build the optional trailing ID column for a window according to the
+// user's chosen ID_METHOD (none, window number, source id, or both).
+// When _reverse is requested, window numbers count down instead of up.
 string WindowMaker::GenerateID(const BED& interval, uint32_t window_index, uint32_t num_windows, bool _reverse) const {
     stringstream s;
     switch(_id_method) {

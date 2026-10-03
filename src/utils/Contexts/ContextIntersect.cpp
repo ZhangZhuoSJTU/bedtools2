@@ -18,9 +18,11 @@ ContextIntersect::~ContextIntersect()
 }
 
 
+// Handle the intersect-specific options, then hand the rest of the command line
+// to the base class so that the generic options are processed too.
 bool ContextIntersect::parseCmdArgs(int argc, char **argv, int skipFirstArgs) {
 	for (_i=_skipFirstArgs; _i < argc; _i++) {
-		if (isUsed(_i - _skipFirstArgs)) {
+		if (isCurrentArgUsed()) {
 			continue;
 		}
 		if (strcmp(_argv[_i], "-a") == 0) {
@@ -89,8 +91,16 @@ bool ContextIntersect::parseCmdArgs(int argc, char **argv, int skipFirstArgs) {
 
 
 
+// Validate the combination of intersect options after the base class has done
+// its generic checks. Many options are mutually exclusive (e.g. -u vs -v, -c vs
+// -wb); this method rejects the illegal combinations and, where appropriate,
+// derives follow-on settings (such as forcing a full scan of the query file).
 bool ContextIntersect::isValidState()
 {
+	// Lower and upper bounds for the -f/-F overlap fractions: half-open (0,1].
+	const float minOverlapFraction = 0.0;
+	const float maxOverlapFraction = 1.0;
+
 	if (!ContextBase::isValidState()) {
 		return false;
 	}
@@ -117,11 +127,11 @@ bool ContextIntersect::isValidState()
 		}
 	}
 
-	if (_haveFractionA && (_overlapFractionA <= 0.0 || _overlapFractionA > 1.0)) {
+	if (_haveFractionA && (_overlapFractionA <= minOverlapFraction || _overlapFractionA > maxOverlapFraction)) {
 		_errorMsg = "\n***** ERROR: -f must be in the range (0.0, 1.0]. *****";
 		return false;
 	}
-	if (_haveFractionB && (_overlapFractionB <= 0.0 || _overlapFractionB > 1.0)) {
+	if (_haveFractionB && (_overlapFractionB <= minOverlapFraction || _overlapFractionB > maxOverlapFraction)) {
 		_errorMsg = "\n***** ERROR: -F must be in the range (0.0, 1.0]. *****";
 		return false;
 	}
@@ -206,6 +216,9 @@ bool ContextIntersect::isValidState()
 	return true;
 }
 
+// Before delegating to the base class, scan every database file so that
+// _maxNumDatabaseFields reflects the widest record among them (needed when
+// padding output for tools like -loj).
 bool ContextIntersect::determineOutputType() {
 	if (_outputTypeDetermined) {
 		return true;
@@ -230,9 +243,9 @@ bool ContextIntersect::handle_a()
 
 	addInputFile(_argv[_i+1]);
 	_queryFileIdx = getNumInputFiles() -1;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	_i++;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
@@ -244,12 +257,15 @@ bool ContextIntersect::handle_abam()
 	}
 	addInputFile(_argv[_i+1]);
 	_queryFileIdx = getNumInputFiles() -1;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	_i++;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
+// -b accepts one or more database files: consume every following argument that
+// is not itself an option (does not start with '-'), registering each as a
+// database and recording the file-id -> database-index mapping.
 bool ContextIntersect::handle_b()
 {
 	if (_argc <= _i+1) {
@@ -262,9 +278,9 @@ bool ContextIntersect::handle_b()
 		int fileId = getNumInputFiles() -1;
 		_dbFileIdxs.push_back(fileId);
 		_fileIdsToDbIdxs[fileId] = _dbFileIdxs.size() -1;
-		markUsed(_i - _skipFirstArgs);
+		markCurrentArgUsed();
 		_i++;
-		markUsed(_i - _skipFirstArgs);
+		markCurrentArgUsed();
 	} while (_argc > _i+1 && _argv[_i+1][0] != '-');
 	return true;
 }
@@ -279,9 +295,9 @@ bool ContextIntersect::handle_names()
 
 	do {
 		addDatabaseNameTag(_argv[_i+1]);
-		markUsed(_i - _skipFirstArgs);
+		markCurrentArgUsed();
 		_i++;
-		markUsed(_i - _skipFirstArgs);
+		markCurrentArgUsed();
 	} while (_argc > _i+1 && _argv[_i+1][0] != '-');
 	setUseDBnameTags(true);
 	return true;
@@ -289,7 +305,7 @@ bool ContextIntersect::handle_names()
 
 bool ContextIntersect::handle_filenames()
 {
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	setUseDBfileNames(true);
 	return true;
 }
@@ -297,14 +313,14 @@ bool ContextIntersect::handle_filenames()
 bool ContextIntersect::handle_c()
 {
     setWriteCount(true);
-    markUsed(_i - _skipFirstArgs);
+    markCurrentArgUsed();
     return true;
 }
 
 bool ContextIntersect::handle_C()
 {
     setWriteCountsPerDatabase(true);
-    markUsed(_i - _skipFirstArgs);
+    markCurrentArgUsed();
     return true;
 }
 
@@ -313,9 +329,9 @@ bool ContextIntersect::handle_f()
     if ((_i+1) < _argc) {
         setHaveFractionA(true);
         setOverlapFractionA(atof(_argv[_i + 1]));
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
         _i++;
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
     }
     return true;
 }
@@ -325,9 +341,9 @@ bool ContextIntersect::handle_F()
     if ((_i+1) < _argc) {
         setHaveFractionB(true);
         setOverlapFractionB(atof(_argv[_i + 1]));
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
         _i++;
-        markUsed(_i - _skipFirstArgs);
+        markCurrentArgUsed();
     }
     return true;
 }
@@ -335,56 +351,56 @@ bool ContextIntersect::handle_F()
 bool ContextIntersect::handle_loj()
 {
     setLeftJoin(true);
-    markUsed(_i - _skipFirstArgs);
+    markCurrentArgUsed();
     return true;
 }
 
 bool ContextIntersect::handle_r()
 {
 	setReciprocalFraction(true);
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
     return true;
 }
 
 bool ContextIntersect::handle_e()
 {
 	setEitherFraction(true);
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
     return true;
 }
 
 bool ContextIntersect::handle_s()
 {
 	setSameStrand(true);
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
     return true;
 }
 
 bool ContextIntersect::handle_S()
 {
 	setDiffStrand(true);
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
     return true;
 }
 
 bool ContextIntersect::handle_u()
 {
     setAnyHit(true);
-    markUsed(_i - _skipFirstArgs);
+    markCurrentArgUsed();
     return true;
 }
 
 bool ContextIntersect::handle_v()
 {
 	setNoHit(true);
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
     return true;
 }
 
 bool ContextIntersect::handle_wa()
 {
 	setWriteA(true);
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
     return true;
 }
 
@@ -392,20 +408,20 @@ bool ContextIntersect::handle_wao()
 {
 	setWriteAllOverlap(true);
 	setWriteOverlap(true);
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
     return true;
 }
 
 bool ContextIntersect::handle_wb()
 {
     setWriteB(true);
-     markUsed(_i - _skipFirstArgs);
+     markCurrentArgUsed();
      return true;
 }
 
 bool ContextIntersect::handle_wo()
 {
 	setWriteOverlap(true);
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
     return true;
 }

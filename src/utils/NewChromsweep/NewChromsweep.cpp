@@ -14,6 +14,10 @@
 #include "ContextIntersect.h"
 #include "FileRecordMgr.h"
 
+// Sentinel used for "no file index has been recorded yet" (e.g. the file for
+// which lexicographical ordering was first assumed).
+static const int NO_FILE_IDX = -1;
+
 NewChromSweep::NewChromSweep(ContextIntersect *context)
 :    _context(context),
      _queryFRM(NULL),
@@ -29,7 +33,7 @@ NewChromSweep::NewChromSweep(ContextIntersect *context)
      _runToDbEnd(false),
      _lexicoDisproven(false),
      _lexicoAssumed(false),
-     _lexicoAssumedFileIdx(-1),
+     _lexicoAssumedFileIdx(NO_FILE_IDX),
      _testLastQueryRec(false)
 {
 	_filePrevChrom.resize(_numFiles);
@@ -37,6 +41,8 @@ NewChromSweep::NewChromSweep(ContextIntersect *context)
 }
 
 
+// Open the query and database file managers, prime each with its first
+// record, and allocate the per-database caches and chrom-order trackers.
 bool NewChromSweep::init() {
 
     //Create new FileRecordMgrs for the input files.
@@ -69,6 +75,9 @@ bool NewChromSweep::init() {
     return true;
  }
 
+// Drain any remaining query and database records after the sweep is done so
+// that the total record/length counters reflect the entire input files, and
+// (optionally) keep verifying chromosome sort order while draining.
 void NewChromSweep::closeOut(bool testChromOrderVal) {
     if (_testLastQueryRec) {
         testChromOrder(_currQueryRec);
@@ -93,6 +102,8 @@ void NewChromSweep::closeOut(bool testChromOrderVal) {
     }
 }
 
+// Verify remaining cross-file chrom expectations, then release every record,
+// close each file manager, and free the per-file bookkeeping structures.
 NewChromSweep::~NewChromSweep(void) {
     if (!_wasInitialized) {
         return;
@@ -126,6 +137,9 @@ NewChromSweep::~NewChromSweep(void) {
 }
 
 
+// Walk the cache of still-active database records for the given db, adding any
+// that intersect the current query to retList and evicting those that can no
+// longer match (different chrom, or entirely before the query).
 void NewChromSweep::scanCache(int dbIdx, RecordKeyVector &retList) {
     recListIterType cacheIter = _caches[dbIdx].begin();
     while (cacheIter != _caches[dbIdx].end())
@@ -148,6 +162,7 @@ void NewChromSweep::scanCache(int dbIdx, RecordKeyVector &retList) {
     }
 }
 
+// Free every record held in the given database's cache and empty it.
 void NewChromSweep::clearCache(int dbIdx)
 {
     //delete all objects pointed to by cache
@@ -159,11 +174,14 @@ void NewChromSweep::clearCache(int dbIdx)
     cache.clear();
 }
 
+// For the current query record, gather all intersecting hits across every
+// database: first from each db's cache, then by advancing the db stream until
+// it is past the query, caching records that may still match later queries.
 void NewChromSweep::masterScan(RecordKeyVector &retList) {
 
-    for (int i=0; i < _numDBs; i++) 
+    for (int i=0; i < _numDBs; i++)
     {
-        if (dbFinished(i) || chromChange(i, retList, true)) 
+        if (dbFinished(i) || chromChange(i, retList, true))
         {
             continue;
         } 
@@ -194,6 +212,10 @@ void NewChromSweep::masterScan(RecordKeyVector &retList) {
     }
 }
 
+// Reconcile the case where the query and a database are on different chroms.
+// Returns true when the database is ahead of the query (so this db should be
+// skipped for now); otherwise fast-forwards the db to the query's chrom and
+// returns false.
 bool NewChromSweep::chromChange(int dbIdx, RecordKeyVector &retList, bool wantScan)
 {
     const Record *dbRec = _currDbRecs[dbIdx];
@@ -239,6 +261,9 @@ bool NewChromSweep::chromChange(int dbIdx, RecordKeyVector &retList, bool wantSc
 }
 
 
+// Advance to the next query record and populate retList with its hits.
+// Returns false once the query file is exhausted (optionally draining the
+// database files first when -runToDbEnd behavior is requested).
 bool NewChromSweep::next(RecordKeyVector &retList) {
     retList.clearVector();
 
@@ -279,6 +304,9 @@ bool NewChromSweep::next(RecordKeyVector &retList) {
     return true;
 }
 
+// Fetch the next record from either the query file (query == true) or the
+// given database file, update the running totals, and report whether a record
+// was actually obtained.
 bool NewChromSweep::nextRecord(bool query, int dbIdx) {
     if (query) {
         _currQueryRec = _queryFRM->getNextRecord();
@@ -300,6 +328,8 @@ bool NewChromSweep::nextRecord(bool query, int dbIdx) {
     }
 }
 
+// Thin wrapper that applies the context's overlap/strand/fraction options when
+// deciding whether two records on the same chromosome intersect.
 bool NewChromSweep::intersects(const Record *rec1, const Record *rec2) const
 {
     //return rec1->sameChromIntersects(rec2, _context->getSameStrand(), _context->getDiffStrand(),
@@ -315,6 +345,7 @@ bool NewChromSweep::intersects(const Record *rec1, const Record *rec2) const
 }
 
 
+// True only when none of the database caches hold any records.
 bool NewChromSweep::allCachesEmpty() {
     for (int i=0; i < _numDBs; i++) {
         if (!_caches[i].empty()) {
@@ -324,6 +355,7 @@ bool NewChromSweep::allCachesEmpty() {
     return true;
 }
 
+// True only when every database's current record slot is empty.
 bool NewChromSweep::allCurrDBrecsNull() {
     for (int i=0; i < _numDBs; i++) {
         if (_currDbRecs[i] != NULL) {
@@ -333,6 +365,7 @@ bool NewChromSweep::allCurrDBrecsNull() {
     return true;
 }
 
+// A database is finished once it has no current record and an empty cache.
 bool NewChromSweep::dbFinished(int dbIdx) {
     if (_currDbRecs[dbIdx] == NULL && _caches[dbIdx].empty()) {
         return true;
@@ -340,6 +373,9 @@ bool NewChromSweep::dbFinished(int dbIdx) {
     return false;
 }
 
+// Verify that records arrive in a consistent chromosome sort order across
+// files when no genome file is supplied, erroring out on an inconsistency or
+// on an unsorted lexicographical ordering that was assumed but then violated.
 void NewChromSweep::testChromOrder(const Record *rec)
 {
     // Only use this method if we don't have a genome file
@@ -385,6 +421,9 @@ void NewChromSweep::testChromOrder(const Record *rec)
     }
 }
 
+// Determine whether the current query's chromosome sorts after the given
+// database record's chromosome, using genome-file chrom ids when available and
+// per-file discovery order (falling back to lexicographical) otherwise.
 bool NewChromSweep::queryChromAfterDbRec(const Record *dbRec)
 {
     //If using a genome file, compare chrom ids.
@@ -412,6 +451,8 @@ bool NewChromSweep::queryChromAfterDbRec(const Record *dbRec)
 }
 
 
+// Return the discovery-order index of a record's chromosome within its file,
+// assigning the next available index the first time a chromosome is seen.
 int NewChromSweep::findChromOrder(const Record *rec) {
     const string &chrom = rec->getChrName();
     int fileIdx = rec->getFileIdx();
@@ -428,6 +469,9 @@ int NewChromSweep::findChromOrder(const Record *rec) {
     }
 }
 
+// Check every other file for evidence that the two chroms are ordered
+// differently than in the file being tested; returns true on the first such
+// contradiction found.
 bool NewChromSweep::verifyChromOrderMismatch(const string & chrom, const string &prevChrom, int skipFile) {
     //for every file except the one being checked,
     //find the current and previous chrom. If a given file
@@ -450,6 +494,9 @@ bool NewChromSweep::verifyChromOrderMismatch(const string & chrom, const string 
     return false;
 }
 
+// When lexicographical ordering has been disproven (so results could be
+// unreliable), confirm that every chromosome present in any database file also
+// appears in the query file, erroring out otherwise.
 void NewChromSweep::testThatAllDbChromsExistInQuery()
 {
     if (_context->hasGenomeFile() || !_lexicoDisproven) return;
@@ -476,6 +523,9 @@ void NewChromSweep::testThatAllDbChromsExistInQuery()
 }
 
 
+// Fallback comparison used when a db chromosome is unknown to the query file:
+// assume lexicographical ordering (recording where that assumption was first
+// made) and report whether the query chrom sorts after the db chrom.
 bool NewChromSweep::testLexicoQueryAfterDb(const Record *queryRec, const Record *dbRec)
 {
     if (_lexicoDisproven) return false;

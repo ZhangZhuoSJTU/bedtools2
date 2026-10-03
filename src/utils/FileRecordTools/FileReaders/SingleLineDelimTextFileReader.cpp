@@ -53,16 +53,17 @@ bool SingleLineDelimTextFileReader::readEntry()
 	// "commented out record."
 	_fullHeaderFound = true;
 
-	//check to make sure line has something besides whitespace.
-	bool hasNonSpace = false;
-	int lineLen = (int)_sLine.size();
-	for (int i=0; i < lineLen; i++) {
+	// A line made up entirely of whitespace carries no record; skip it
+	// rather than feeding it to the delimiter scanner.
+	bool hasContent = false;
+	int lineLength = (int)_sLine.size();
+	for (int i = 0; i < lineLength; i++) {
 		if (!isspace(_sLine[i])) {
-			hasNonSpace = true;
+			hasContent = true;
 			break;
 		}
 	}
-	if (!hasNonSpace) {
+	if (!hasContent) {
 		return false;
 	}
 
@@ -70,6 +71,8 @@ bool SingleLineDelimTextFileReader::readEntry()
 		return true;
 	}
 
+	// Build the field position table for this line; a field-count mismatch
+	// is reported from within and terminates the run.
 	if (!findDelimiters()) {
 		return false;
 	}
@@ -77,10 +80,25 @@ bool SingleLineDelimTextFileReader::readEntry()
 }
 
 
+int SingleLineDelimTextFileReader::startOffset(int fieldNum) const {
+	// The table entry preceding a field holds its leading delimiter's
+	// position; the field's own first character is one byte later.
+	LineOffset delimPos = _delimPositions[fieldNum];
+	return (int)delimPos + 1;
+}
+
+int SingleLineDelimTextFileReader::endOffset(int fieldNum) const {
+	// The field ends where the next delimiter begins.
+	LineOffset delimPos = _delimPositions[fieldNum + 1];
+	return (int)delimPos;
+}
+
+int SingleLineDelimTextFileReader::fieldLength(int fieldNum) const {
+	return endOffset(fieldNum) - startOffset(fieldNum);
+}
+
 void SingleLineDelimTextFileReader::getField(int fieldNum, string &str) const {
-	CHRPOS startPos = _delimPositions[fieldNum] +1;
-	CHRPOS endPos = _delimPositions[fieldNum+1];
-	str.assign(_sLine.c_str() + startPos, endPos - startPos);
+	str.assign(_sLine.c_str() + startOffset(fieldNum), fieldLength(fieldNum));
 }
 
 
@@ -91,13 +109,11 @@ void SingleLineDelimTextFileReader::getField(int fieldNum, CHRPOS &val) const {
 }
 
 void SingleLineDelimTextFileReader::getField(int fieldNum, char &val) const {
-	val = _sLine[_delimPositions[fieldNum] +1];
+	val = _sLine[startOffset(fieldNum)];
 }
 
 void SingleLineDelimTextFileReader::appendField(int fieldNum, string &str) const {
-	int startPos = _delimPositions[fieldNum] +1;
-	int endPos = _delimPositions[fieldNum+1];
-	str.append(_sLine.c_str() + startPos, endPos - startPos);
+	str.append(_sLine.c_str() + startOffset(fieldNum), fieldLength(fieldNum));
 }
 
 bool SingleLineDelimTextFileReader::detectAndHandleHeader()
@@ -117,28 +133,36 @@ bool SingleLineDelimTextFileReader::detectAndHandleHeader()
 }
 
 bool SingleLineDelimTextFileReader::findDelimiters() {
-	memset(_delimPositions, 0, (_numFields +1) * sizeof(int));
-	//scan the line for delimiters, determine their positions
-	int nfields = 0;
-	const char* ptr = _sLine.c_str();
-	const char* start = ptr;
-	int target = _delimChar;
+	// Reset the position table for the new line before rescanning.
+	memset(_delimPositions, 0, (_numFields + 1) * sizeof(int));
 
-	while(ptr) {
-		_delimPositions[nfields++] = ptr - start - 1;
-		ptr = strchr(ptr, target);
-		if(ptr) ptr ++;
+	// Walk the line once, recording the position of each field boundary.
+	// Each table slot stores the index just before a field starts; the
+	// trailing slot is closed off with the line length below.
+	int fieldCount = 0;
+	const char *lineStart = _sLine.c_str();
+	const char *cursor = lineStart;
+	const int delimByte = _delimChar;
+
+	while (cursor) {
+		_delimPositions[fieldCount++] = cursor - lineStart - 1;
+		cursor = strchr(cursor, delimByte);
+		if (cursor) {
+			cursor++;
+		}
 	}
-	_delimPositions[nfields] = _sLine.size();
+	_delimPositions[fieldCount] = _sLine.size();
 
-	// count the number of fields allow for lines ending in \t\n
-	if (nfields != _numFields) {
-		cerr << "Error: line number " 
-			 << _lineNum << " of file " 
-			 << _filename << " has " 
-			 << nfields << " fields, but " 
-			 << _numFields 
-			 << " were expected." 
+	// A data line is only valid if it carries exactly the number of fields
+	// the file's type was established with. Anything else (e.g. a stray
+	// trailing tab) is a malformed record.
+	if (fieldCount != _numFields) {
+		cerr << "Error: line number "
+			 << _lineNum << " of file "
+			 << _filename << " has "
+			 << fieldCount << " fields, but "
+			 << _numFields
+			 << " were expected."
 			 << endl;
 		exit(1);
 	}

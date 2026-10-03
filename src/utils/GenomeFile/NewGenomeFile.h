@@ -21,6 +21,11 @@
 #include "api/BamAux.h"
 
 
+// NewGenomeFile models a bedtools "genome" (a set of chromosomes and their
+// lengths), loaded either from a two-column text file / .fai index or from the
+// reference list of an open BAM file. Besides simple name->size lookups it
+// maintains a cumulative offset table so that per-chromosome coordinates can be
+// projected onto, and recovered from, a single linear genome-wide coordinate.
 class NewGenomeFile {
 
 public:
@@ -47,18 +52,19 @@ public:
 
 
 private:
-    string  _genomeFileName;
-    istream   *_genomeFile;
+    string  _genomeFileName;   // path to the genome file (or "-"/"stdin")
+    istream   *_genomeFile;     // stream the genome is read from
+    // Maps a chromosome name to a (size, sort-order id) pair.
     typedef map<string, pair<CHRPOS, int> > lookupType;
     lookupType _chromSizeIds;
-    vector<string> _chromList;
-    int _maxId;
+    vector<string> _chromList;  // chromosome names in file order
+    int _maxId;                 // highest sort-order id assigned so far
 
     // projecting chroms onto a single coordinate system
-    CHRPOS _genomeLength;
-    vector<CHRPOS> _startOffsets;
-    
-    //cache members for quick lookup
+    CHRPOS _genomeLength;        // total length of all chromosomes combined
+    vector<CHRPOS> _startOffsets;// cumulative start offset of each chromosome
+
+    //cache members for quick lookup of the most recently queried chromosome
     string _currChromName;
     CHRPOS _currChromSize;
     int _currChromId;

@@ -23,7 +23,7 @@ ContextCoverage::~ContextCoverage() {
 bool ContextCoverage::parseCmdArgs(int argc, char **argv, int skipFirstArgs) {
 
 	for (_i=_skipFirstArgs; _i < argc; _i++) {
-		if (isUsed(_i - _skipFirstArgs)) {
+		if (isCurrentArgUsed()) {
 			continue;
 		}
 		if (strcmp(_argv[_i], "-d") == 0) {
@@ -68,7 +68,7 @@ bool ContextCoverage::handle_d()
 {
 	_perBase = true;
 	_coverageType = PER_BASE;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
@@ -76,7 +76,7 @@ bool ContextCoverage::handle_hist()
 {
 	_showHist = true;
 	_coverageType = HIST;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
@@ -84,6 +84,6 @@ bool ContextCoverage::handle_mean()
 {
 	_mean = true;
 	_coverageType = MEAN;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }

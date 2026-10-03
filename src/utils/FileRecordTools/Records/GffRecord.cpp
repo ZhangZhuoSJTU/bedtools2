@@ -22,6 +22,9 @@ void GffRecord::clear()
 bool GffRecord::initFromFile(SingleLineDelimTextFileReader *fileReader)
 {
 	setFileIdx(fileReader->getFileIdx());
+
+	// GFF column order differs from BED: seqid(0), source(1), type(2),
+	// start(3), end(4), score(5), strand(6), frame(7), attributes(8).
 	fileReader->getField(0, _chrName);
 	fileReader->getField(3, _startPosStr);
 	_startPos = str2chrPos(_startPosStr);

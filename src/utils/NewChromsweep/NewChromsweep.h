@@ -28,6 +28,10 @@ class Record;
 class FileRecordMgr;
 class ContextIntersect;
 
+// Streaming sweep over coordinate-sorted query and database files that, for each
+// query record, yields every intersecting database record without loading whole
+// files into memory. Also enforces consistent chromosome sort order when no
+// genome file is supplied.
 class NewChromSweep {
 public:
 

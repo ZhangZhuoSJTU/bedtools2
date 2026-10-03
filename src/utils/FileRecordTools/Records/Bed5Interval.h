@@ -29,6 +29,12 @@ public:
 	virtual int getNumFields() const  { return 5; }
 	static bool isNumericField(int fieldNum);
 
+	// 1-based column positions for the generic field accessors.
+	enum {
+		NAME_COLUMN  = 4,
+		SCORE_COLUMN = 5
+	};
+
 
 protected:
 	virtual ~Bed5Interval();

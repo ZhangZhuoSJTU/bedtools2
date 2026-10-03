@@ -26,6 +26,42 @@ using namespace BamTools;
 using namespace std;
 
 
+//************************************************
+// Named constants (replace hard-coded literals).
+//************************************************
+namespace PairToBedConstants {
+    // The nine valid values of the -type option. Using named constants keeps
+    // the many string comparisons in the implementation legible and avoids
+    // typos drifting apart from the option parser.
+    const char * const TYPE_EITHER   = "either";    // overlap on either end
+    const char * const TYPE_NEITHER  = "neither";   // no overlap on either end
+    const char * const TYPE_BOTH     = "both";      // overlap required on both ends
+    const char * const TYPE_XOR      = "xor";       // overlap on exactly one end
+    const char * const TYPE_NOTBOTH  = "notboth";   // xor + neither
+    const char * const TYPE_ISPAN    = "ispan";     // inner span [end1, start2]
+    const char * const TYPE_OSPAN    = "ospan";     // outer span [start1, end2]
+    const char * const TYPE_NOTISPAN = "notispan";  // report A if ispan misses B
+    const char * const TYPE_NOTOSPAN = "notospan";  // report A if ospan misses B
+
+    // Number of BED hit records to pre-allocate for the plain-text path.
+    const unsigned int HITS_RESERVE_BED = 100;
+    // Larger reservation used while processing BAM alignment blocks.
+    const unsigned int HITS_RESERVE_BAM = 1000;
+
+    // A BAM-derived pair is reported as a full 10-column BEDPE record.
+    const int BEDPE_FIELD_COUNT = 10;
+
+    // Minimum overlap fraction requesting "any" (>=1bp) overlap.
+    const float ANY_OVERLAP_FRACTION = 0.0;
+
+    // Process exit status used on fatal errors.
+    const int EXIT_FAILURE_STATUS = 1;
+
+    // Placeholder chromosome marking an unmapped / absent BEDPE end.
+    const char * const UNMAPPED_CHROM = ".";
+}
+
+
 
 /**************************************************
 Helper function protoypes

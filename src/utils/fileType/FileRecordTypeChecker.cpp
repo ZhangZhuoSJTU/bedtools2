@@ -92,6 +92,9 @@ FileRecordTypeChecker::FileRecordTypeChecker()
 }
 
 
+// Examine the first block of a file to classify its overall type. Handles the
+// empty-file and gzip cases up front, then dispatches to binary (BAM) or text
+// format detection. Returns true when a determination (or deferral) was made.
 bool FileRecordTypeChecker::scanBuffer(const char *buffer, size_t len, bool eofHit, bool isCompressed)
 {
 	_eofHit = eofHit;
@@ -123,6 +126,9 @@ bool FileRecordTypeChecker::scanBuffer(const char *buffer, size_t len, bool eofH
 	}
 }
 
+// Heuristically decide whether the buffer is binary rather than text: it is
+// binary if it is BAM, or if fewer than ~90% of its bytes are printable
+// (alphanumeric, whitespace, or punctuation).
 bool FileRecordTypeChecker::isBinaryBuffer(const char *buffer, size_t len)
 {
 	if (isBAM(buffer)) {
@@ -155,6 +161,7 @@ bool FileRecordTypeChecker::isBinaryBuffer(const char *buffer, size_t len)
 }
 
 
+// Detect a BAM file by its magic string and record the file/record type.
 bool FileRecordTypeChecker::isBAM(const char *buffer)
 {
 	//check for BAM. The Bam Magic String is "BAM\1", and should be the first 4 characters of the file.
@@ -170,6 +177,9 @@ bool FileRecordTypeChecker::isBAM(const char *buffer)
 	return false;
 }
 
+// Classify a text buffer: detect VCF first, then confirm a delimited layout,
+// then narrow a delimited file down to a specific BED/BEDGRAPH/GFF/plus record
+// type based on the field count and field contents of the first data line.
 bool FileRecordTypeChecker::handleTextFormat(const char *buffer, size_t len)
 {
 	if (isVCFformat(buffer)) {
@@ -247,6 +257,7 @@ bool FileRecordTypeChecker::handleTextFormat(const char *buffer, size_t len)
 	return false;
 }
 
+// Detect VCF by its "##fileformat=VCF" leading line (cached once found).
 bool FileRecordTypeChecker::isVCFformat(const char *buffer)
 {
 	if (_isVCF) {
@@ -261,6 +272,8 @@ bool FileRecordTypeChecker::isVCFformat(const char *buffer)
 	return false;
 }
 
+// True when the first data line looks like BED: at least three fields, with
+// integer start/end in fields 2 and 3 and end not less than start.
 bool FileRecordTypeChecker::isBedFormat() {
 
 	//test that the file has at least three fields.
@@ -281,6 +294,8 @@ bool FileRecordTypeChecker::isBedFormat() {
 	return true;
 }
 
+// True when the first data line looks like GFF: at least seven fields with
+// numeric, non-inverted start/end in fields 4 and 5 (more than 8 fields => plus).
 bool FileRecordTypeChecker::isGFFformat()
 {
 	//a GFF file may have 8 or 9 fields. More than thats is GFFplus
@@ -302,6 +317,10 @@ bool FileRecordTypeChecker::isGFFformat()
 	return true;
 }
 
+// Determine whether the text buffer is a consistently delimited table. Lines
+// are split on newlines; headers and empty lines are skipped; then a handful of
+// data lines are checked for a consistent count of tab, comma, or semicolon
+// (tested in that priority order) to pick the field delimiter and field count.
 bool FileRecordTypeChecker::isTextDelimtedFormat(const char *buffer, size_t len)
 {
 	//Break single string buffer into vector of strings. Delimiter is newline.
@@ -415,6 +434,9 @@ bool FileRecordTypeChecker::isTextDelimtedFormat(const char *buffer, size_t len)
 	return false; //unable to detect delimited file.
 }
 
+// Given the per-line counts of a candidate delimiter, decide whether every
+// sampled line has the same (non-zero) count. If so, record the delimiter and
+// the resulting field count and return true.
 bool FileRecordTypeChecker::delimiterTesting(vector<int> &counts, char suspectChar)
 {
 	//check to see if we found the same number of tabs in every line.
@@ -443,6 +465,7 @@ bool FileRecordTypeChecker::delimiterTesting(vector<int> &counts, char suspectCh
 }
 
 
+// Force the detected type to BAM (used when the caller already knows the input).
 void FileRecordTypeChecker::setBam()
 {
 	_fileType = BAM_FILE_TYPE;
@@ -451,6 +474,7 @@ void FileRecordTypeChecker::setBam()
 	_isBAM = true;
 }
 
+// Force the detected type to BAM and additionally mark the input as CRAM.
 void FileRecordTypeChecker::setCram()
 {
 	_fileType = BAM_FILE_TYPE;
@@ -460,20 +484,25 @@ void FileRecordTypeChecker::setCram()
 	_isCRAM = true;
 }
 
+// True when the line satisfies the BED5 shape (5 fields, numeric score).
 bool FileRecordTypeChecker::passesBed5() {
 	return _isBed && _numFields == 5 && isNumeric(_tokenizer.getElem(4));
 }
 
+// True when the line satisfies the BED6 shape (6 fields, strand in field 6).
 bool FileRecordTypeChecker::passesBed6() {
 	return (_isBed && _numFields == 6 && isStrandField(5));
 }
 
+// True when the line satisfies the BED12 shape (strand plus the numeric
+// thickStart/thickEnd/blockCount fields).
 bool FileRecordTypeChecker::passesBed12() {
 
 	return (isStrandField(5) && isNumeric(_tokenizer.getElem(6)) &&
 			isNumeric(_tokenizer.getElem(7)) && isNumeric(_tokenizer.getElem(9)));
 }
 
+// True when the given field holds a valid strand token ('+', '-', '.' or '*').
 bool FileRecordTypeChecker::isStrandField(int field) {
 	const string &strandChar = _tokenizer.getElem(field);
 	return (strandChar == "+" || strandChar == "-" || strandChar == "." || strandChar == "*");

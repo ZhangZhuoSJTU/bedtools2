@@ -11,6 +11,10 @@
 bool VcfRecord::initFromFile(SingleLineDelimTextFileReader *fileReader)
 {
 	setFileIdx(fileReader->getFileIdx());
+
+	// VCF column order (0-based): CHROM(0), POS(1), ID(2), REF(3), ALT(4),
+	// QUAL(5), FILTER(6), INFO(7). We read the ones we need directly by
+	// their fixed index rather than iterating.
 	fileReader->getField(0, _chrName);
 	_chrId = fileReader->getCurrChromdId();
 	fileReader->getField(1, _startPosStr);

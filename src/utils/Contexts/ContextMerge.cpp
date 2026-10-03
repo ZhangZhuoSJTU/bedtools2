@@ -30,7 +30,7 @@ ContextMerge::~ContextMerge()
 bool ContextMerge::parseCmdArgs(int argc, char **argv, int skipFirstArgs)
 {
 	for (_i=_skipFirstArgs; _i < argc; _i++) {
-		if (isUsed(_i - _skipFirstArgs)) {
+		if (isCurrentArgUsed()) {
 			continue;
 		}
 		else if (strcmp(_argv[_i], "-n") == 0) {
@@ -97,9 +97,9 @@ bool ContextMerge::handle_d() {
 			int dist = (int)str2chrPos(_argv[_i+1]);
 			
 			_maxDistance = dist;
-	    	markUsed(_i - _skipFirstArgs);
+	    	markCurrentArgUsed();
 	        _i++;
-	        markUsed(_i - _skipFirstArgs);
+	        markCurrentArgUsed();
 			return true;
     	}
     }
@@ -109,14 +109,14 @@ bool ContextMerge::handle_d() {
 
 bool ContextMerge::handle_n()
 {
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	_errorMsg = "\n***** ERROR: -n option is deprecated. Please see the documentation for the -c and -o column operation options. *****";
     return false;
 }
 
 bool ContextMerge::handle_nms()
 {
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	_errorMsg = "\n***** ERROR: -nms option is deprecated. Please see the documentation for the -c and -o column operation options. *****";
     return false;
 
@@ -126,14 +126,14 @@ bool ContextMerge::handle_nms()
 bool ContextMerge::handle_scores()
 {
 	// No longer supporting this deprecated option.
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	_errorMsg = "\n***** ERROR: -scores option is deprecated. Please see the documentation for the -c and -o column operation options. *****";
     return false;
 }
 
 bool ContextMerge::handle_s() {
 	_desiredStrand = FileRecordMergeMgr::SAME_STRAND_EITHER;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
@@ -148,9 +148,9 @@ bool ContextMerge::handle_S() {
 			_desiredStrand = FileRecordMergeMgr::SAME_STRAND_REVERSE;
     	}
     	if (validChar) {
-			markUsed(_i - _skipFirstArgs);
+			markCurrentArgUsed();
 			_i++;
-			markUsed(_i - _skipFirstArgs);
+			markCurrentArgUsed();
 			return true;
     	}
     }

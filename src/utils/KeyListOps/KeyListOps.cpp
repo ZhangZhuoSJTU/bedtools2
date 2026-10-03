@@ -69,15 +69,18 @@ _dbFileType(FileRecordTypeChecker::UNKNOWN_FILE_TYPE)
 
 }
 
+// True if the given operation expects numeric input (by op code).
 bool KeyListOps::isNumericOp(OP_TYPES op) const {
 	map<OP_TYPES, bool>::const_iterator iter = _isNumericOp.find(op);
 	return (iter == _isNumericOp.end() ? false : iter->second);
 }
 
+// True if the given operation expects numeric input (by operation name).
 bool KeyListOps::isNumericOp(const string &op) const {
 	return isNumericOp(getOpCode(op));
 }
 
+// Map an operation name to its code, returning INVALID for unknown names.
 KeyListOps::OP_TYPES KeyListOps::getOpCode(const string &operation) const {
 	//If the operation does not exist, return INVALID.
 	//otherwise, return code for given operation.
@@ -89,6 +92,11 @@ KeyListOps::OP_TYPES KeyListOps::getOpCode(const string &operation) const {
 }
 
 
+// Validate the requested column/operation lists against the database file and
+// build the internal (column, operation) pairs to apply. Reports an error and
+// returns false on any mismatch (bad counts, out-of-range column, unknown
+// operation, or the unsupported BAM flags column). NOTE: behavior-sensitive
+// column validation; left functionally unchanged.
 bool KeyListOps::isValidColumnOps(FileRecordMgr *dbFile) {
 
 	//get the strings from context containing the comma-delimited lists of columns
@@ -160,6 +168,9 @@ bool KeyListOps::isValidColumnOps(FileRecordMgr *dbFile) {
     return true;
 }
 
+// Apply every configured (column, operation) pair to the given hits and return
+// the tab-separated result string. Numeric operations emit the null value when
+// their result is NaN; any non-numeric-value warning is reported once at the end.
 const string & KeyListOps::getOpVals(RecordKeyVector &hits)
 {
 	//loop through all requested columns, and for each one, call the method needed
@@ -333,6 +344,7 @@ const string & KeyListOps::getOpVals(RecordKeyVector &hits)
 	return _outVals;
 }
 
+// Render a double to a string using the configured decimal precision.
 const string &KeyListOps::format(double val)
 {
    std::stringstream strmBuf;
@@ -341,6 +353,7 @@ const string &KeyListOps::format(double val)
    return _formatStr;
 }
 
+// Print the help text for the column-operation options (-c, -o, -delim, -prec).
 void KeyListOpsHelp() {
 
     cerr << "\t-c\t"             << "Specify columns from the B file to map onto intervals in A." << endl;

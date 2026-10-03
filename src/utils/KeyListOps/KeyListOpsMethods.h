@@ -16,6 +16,10 @@
 
 using namespace std;
 
+// Implements the individual column operations (sum, mean, stddev, median,
+// mode, distinct, collapse, concat, frequency histograms, first/last, etc.)
+// over a RecordKeyVector for a selected column. KeyListOps drives this class;
+// here lives the actual numeric and string math for each operation.
 class KeyListOpsMethods {
 public:
 	KeyListOpsMethods();

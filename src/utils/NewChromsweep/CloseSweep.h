@@ -14,6 +14,8 @@
 
 #include "ContextClosest.h"
 
+// Pairs a record with its (absolute) distance from the query plus a sign flag,
+// used when merging and re-ranking closest hits across multiple databases.
 class distanceTuple {
 public:
 	distanceTuple() : _dist(0), _rec(NULL), _isNeg(false) {}
@@ -23,6 +25,8 @@ public:
 	bool _isNeg;
 };
 
+// Orders distanceTuples by ascending distance, breaking ties with the record's
+// own lessThan() ordering so results are deterministic.
 class DistanceTupleSortAscFunctor {
 public:
 	bool operator()(const distanceTuple & d1, const distanceTuple & d2) const {
@@ -31,6 +35,9 @@ public:
 };
 
 
+// A bounded, distance-keyed collection of records. It keeps at most _kVal
+// distinct distances (the smallest ones), grouping all records that share a
+// distance into one bucket, so it can efficiently answer "the k closest".
 class RecDistList {
 public:
     typedef enum { LEFT, OVERLAP, RIGHT } chromDirType;
@@ -77,6 +84,9 @@ private:
 	indexType * _distIndex;
 };
 
+// Specialization of the chrom sweep that, for every query record, reports the
+// k nearest database records (closest tool), honoring strand, distance-mode,
+// stream-direction, and tie-breaking options across one or more databases.
 class CloseSweep : public NewChromSweep {
 public:
 	CloseSweep(ContextClosest *context);

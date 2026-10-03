@@ -33,7 +33,7 @@ ContextGroupBy::~ContextGroupBy()
 bool ContextGroupBy::parseCmdArgs(int argc, char **argv, int skipFirstArgs)
 {
 	for (_i=_skipFirstArgs; _i < argc; _i++) {
-		if (isUsed(_i - _skipFirstArgs)) {
+		if (isCurrentArgUsed()) {
 			continue;
 		}
 		else if ((strcmp(_argv[_i], "-g") == 0) || (strcmp(_argv[_i], "-grp") == 0)) {
@@ -84,41 +84,41 @@ bool ContextGroupBy::handle_g()
 		return false;
 	}
 	_groupStr = _argv[_i+1];
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	_i++;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
 bool ContextGroupBy::handle_inheader()
 {
 	_inheader = true;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
 bool ContextGroupBy::handle_outheader() {
 	setPrintHeader(true);
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
 bool ContextGroupBy::handle_header() {
 	_inheader = true;
 	setPrintHeader(true);
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
 bool ContextGroupBy::handle_full() {
 	_printFullCols = true;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 
 bool ContextGroupBy::handle_ignorecase() {
 	_ignoreCase = true;
-	markUsed(_i - _skipFirstArgs);
+	markCurrentArgUsed();
 	return true;
 }
 

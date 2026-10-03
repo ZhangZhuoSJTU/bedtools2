@@ -23,6 +23,10 @@ bool Bed3Interval::initFromFile(FileReader *fileReader)
 bool Bed3Interval::initFromFile(SingleLineDelimTextFileReader *fileReader)
 {
 	setFileIdx(fileReader->getFileIdx());
+
+	// The first three columns of any BED-family record are the chromosome
+	// and the start/end coordinates. Pull them as raw strings, then convert
+	// the coordinates once.
 	fileReader->getField(0, _chrName);
 	fileReader->getField(1, _startPosStr);
 	fileReader->getField(2, _endPosStr);
