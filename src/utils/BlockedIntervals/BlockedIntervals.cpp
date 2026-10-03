@@ -11,6 +11,49 @@
 ******************************************************************************/
 #include "BlockedIntervals.h"
 
+enum CigarBlockClass {
+    CIGAR_BLOCK_ALIGNED,
+    CIGAR_BLOCK_DELETION,
+    CIGAR_BLOCK_SKIP,
+    CIGAR_BLOCK_IGNORED,
+    CIGAR_BLOCK_INVALID
+};
+
+static CigarBlockClass GetCigarBlockClass(char opType)
+{
+    switch (opType) {
+        case 'M': case 'X': case '=':
+            return CIGAR_BLOCK_ALIGNED;
+        case 'D':
+            return CIGAR_BLOCK_DELETION;
+        case 'N':
+            return CIGAR_BLOCK_SKIP;
+        case 'I': case 'S': case 'P': case 'H':
+            return CIGAR_BLOCK_IGNORED;
+        default:
+            return CIGAR_BLOCK_INVALID;
+    }
+}
+
+static bool ShouldSplitCigarBlock(CigarBlockClass opClass,
+                                  bool breakOnDeletionOps,
+                                  bool breakOnSkipOps)
+{
+    return (opClass == CIGAR_BLOCK_DELETION && breakOnDeletionOps) ||
+           (opClass == CIGAR_BLOCK_SKIP && breakOnSkipOps);
+}
+
+static void AppendBamBlock(const string &chrom,
+                           const BamAlignment &bam,
+                           const string &strand,
+                           bedVector &bedBlocks,
+                           CHRPOS start,
+                           CHRPOS blockLength)
+{
+    bedBlocks.push_back( BED(chrom, start, start + blockLength,
+                              bam.Name, ToString(bam.MapQuality), strand) );
+}
+
 
 void GetBamBlocks(const BamAlignment &bam,
                   const string &chrom,
@@ -18,58 +61,37 @@ void GetBamBlocks(const BamAlignment &bam,
                   bool breakOnDeletionOps,
                   bool breakOnSkipOps)
 {
-    vector<int> starts;
-    vector<int> lengths;
-    starts.push_back(0);
-    
     string strand;
     bam.IsReverseStrand() ? strand = "-" : strand = "+";
     CHRPOS currPosition = bam.Position;
-    int blockLength  = 0;
+    CHRPOS blockLength = 0;
 
     //  Rip through the CIGAR ops and figure out if there is more
     //  than one block for this alignment
     vector<CigarOp>::const_iterator cigItr = bam.CigarData.begin();
     vector<CigarOp>::const_iterator cigEnd = bam.CigarData.end();
     for (; cigItr != cigEnd; ++cigItr) {
-        switch (cigItr->Type) {
-            case ('M') :case ('X'): case ('='):
-                blockLength += cigItr->Length;
-            case ('I') : break;
-            case ('S') : break;
-            case ('D') :
-                if (!breakOnDeletionOps)
-                    blockLength += cigItr->Length;
-                else {
-                    if (blockLength > 0)
-                    {
-                        bedBlocks.push_back( BED(chrom, currPosition, currPosition + blockLength,
-                                            bam.Name, ToString(bam.MapQuality), strand) );
-                    }
-                    currPosition += cigItr->Length + blockLength;
-                    blockLength = 0;
-                }
-            case ('P') : break;
-            case ('N') :
-                if (!breakOnSkipOps)
-                    blockLength += cigItr->Length;
-                else {
-                    if (blockLength > 0)
-                    {
-                        bedBlocks.push_back( BED(chrom, currPosition, currPosition + blockLength,
-                                            bam.Name, ToString(bam.MapQuality), strand) );
-                    }
-                    currPosition += cigItr->Length + blockLength;
-                    blockLength = 0;
-                }
-            case ('H') : break;                             // for 'H' - do nothing, move to next op
-            default    :
-                fprintf(stderr,"ERROR: Invalid Cigar op type \'%c\'.\n",cigItr->Type);   // shouldn't get here
-                exit(1);
+        CigarBlockClass opClass = GetCigarBlockClass(cigItr->Type);
+        if (opClass == CIGAR_BLOCK_ALIGNED ||
+            ((opClass == CIGAR_BLOCK_DELETION || opClass == CIGAR_BLOCK_SKIP) &&
+             !ShouldSplitCigarBlock(opClass, breakOnDeletionOps, breakOnSkipOps))) {
+            blockLength += cigItr->Length;
+        }
+        else if (ShouldSplitCigarBlock(opClass, breakOnDeletionOps, breakOnSkipOps)) {
+            if (blockLength > 0) {
+                AppendBamBlock(chrom, bam, strand, bedBlocks, currPosition, blockLength);
+                currPosition += blockLength;
+                blockLength = 0;
+            }
+            currPosition += cigItr->Length;
+        }
+        else if (opClass == CIGAR_BLOCK_INVALID) {
+            fprintf(stderr,"ERROR: Invalid Cigar op type \'%c\'.\n",cigItr->Type);   // shouldn't get here
+            exit(1);
         }
     }
-    bedBlocks.push_back( BED(chrom, currPosition, currPosition + blockLength,
-                          bam.Name, ToString(bam.MapQuality), strand) );
+    AppendBamBlock(chrom, bam, strand, bedBlocks,
+                   currPosition, blockLength);
 }
 
 
